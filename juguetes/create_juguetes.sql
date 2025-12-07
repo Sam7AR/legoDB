@@ -19,8 +19,8 @@ CREATE TABLE juguetes (
 
     instrucciones VARCHAR(260),
 
-    es_set VARCHAR(2) NOT NULL
-        CONSTRAINT chk_juguetes_es_set CHECK (es_set IN ('si', 'no')),
+    es_set VARCHAR(1) NOT NULL
+        CONSTRAINT chk_juguetes_es_set CHECK (es_set IN ('S', 'N')),
 
     id_set_padre NUMBER
         CONSTRAINT fk_juguetes_set_padre REFERENCES juguetes(id)
