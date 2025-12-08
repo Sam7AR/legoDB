@@ -1,15 +1,23 @@
+DROP TABLE entradas CASCADE CONSTRAINTS;
+DROP TABLE inscritos CASCADE CONSTRAINTS;
+DROP TABLE recibos_inscripcion CASCADE CONSTRAINTS;
+DROP TABLE fans_menores CASCADE CONSTRAINTS;
+DROP TABLE clientes CASCADE CONSTRAINTS;
+DROP TABLE tours CASCADE CONSTRAINTS;
+DROP TABLE paises CASCADE CONSTRAINTS;
+
 CREATE TABLE paises (
-    id                       NUMBER(3)     NOT NULL CONSTRAINT pk_pais PRIMARY KEY,
-    nombre                   VARCHAR2(50)  NOT NULL,
-    continente               CHAR(2)       NOT NULL CONSTRAINT check_cont CHECK(continente IN ('AM','AF','AS','EU','OC')),
-    nacionalidad             VARCHAR2(50)  NOT NULL,
-    pertenece_ue             BOOLEAN       NOT NULL
+    id_pais              NUMBER(3)     NOT NULL CONSTRAINT pk_pais PRIMARY KEY,
+    nombre               VARCHAR2(50)  NOT NULL,
+    continente           CHAR(2)       NOT NULL CONSTRAINT check_cont CHECK(continente IN ('AM','AF','AS','EU','OC')),
+    nacionalidad         VARCHAR2(50)  NOT NULL,
+    pertenece_ue         BOOLEAN       NOT NULL
 );
 
 CREATE TABLE tours (
-    fec_inic    DATE CONSTRAINT pk_tour PRIMARY KEY,
-    cupos_tot   NUMBER(4) NOT NULL,
-    precio_ent  NUMBER(6,2) NOT NULL
+    fec_inic             DATE CONSTRAINT pk_tour PRIMARY KEY,
+    cupos_tot            NUMBER(4) NOT NULL,
+    precio_ent           NUMBER(6,2) NOT NULL
 );
 
 CREATE TABLE clientes (
@@ -41,31 +49,31 @@ CREATE TABLE fans_menores (
 );
 
 CREATE TABLE recibos_inscripcion (
-    id_tour           DATE NOT NULL,
-    nro_reci          NUMBER(4) NOT NULL,
-    costo_tot         NUMBER(8,2) NOT NULL,
-    estatus           VARCHAR2(9) NOT NULL CONSTRAINT check_recibo_estatus CHECK (estatus IN ('pendiente','pagado')),
-    fec_emi           DATE, 
+    id_tour              DATE NOT NULL,
+    nro_reci             NUMBER(4) NOT NULL,
+    costo_tot            NUMBER(8,2) NOT NULL,
+    estatus              VARCHAR2(9) NOT NULL CONSTRAINT check_recibo_estatus CHECK (estatus IN ('pendiente','pagado')),
+    fec_emi              DATE,
     CONSTRAINT pk_recibo_ins PRIMARY KEY(id_tour,nro_reci)
 );
 
 CREATE TABLE inscritos (
-    id_tour           DATE NOT NULL,
-    nro_reci          NUMBER(4) NOT NULL,
-    id_ins            NUMBER(2) NOT NULL,
-    id_clien          NUMBER(7),
-    id_fan_men        NUMBER(7),
+    id_tour              DATE NOT NULL,
+    nro_reci             NUMBER(4) NOT NULL,
+    id_ins               NUMBER(2) NOT NULL,
+    id_clien             NUMBER(7),
+    id_fan_men           NUMBER(7),
     CONSTRAINT pk_inscritos PRIMARY KEY(id_tour,nro_reci,id_ins),
-    CONSTRAINT clien_fan_exclu CHECK( 
+    CONSTRAINT clien_fan_exclu CHECK(
                                     (id_clien IS NOT NULL AND id_fan_men IS NULL) OR
-                                    (id_clien IS NULL AND id_fan_men IS NOT NULL))  
+                                    (id_clien IS NULL AND id_fan_men IS NOT NULL))
 );
 
 CREATE TABLE entradas (
-    id_tour           DATE NOT NULL,
-    nro_reci          NUMBER(4) NOT NULL,
-    nro_ent           NUMBER(4) NOT NULL,
-    tipo_asis         VARCHAR2(6) NOT NULL CONSTRAINT check_tipo_asis CHECK (tipo_asis IN ('adulto','menor')),
+    id_tour              DATE NOT NULL,
+    nro_reci             NUMBER(4) NOT NULL,
+    nro_ent              NUMBER(4) NOT NULL,
+    tipo_asis            VARCHAR2(6) NOT NULL CONSTRAINT check_tipo_asis CHECK (tipo_asis IN ('adulto','menor')),
     CONSTRAINT pk_entradas PRIMARY KEY(id_tour,nro_reci,nro_ent)
 );
 
@@ -73,22 +81,22 @@ ALTER TABLE clientes
   ADD(
   CONSTRAINT fk_clien_nacio
   FOREIGN KEY (id_pais_nacio)
-  REFERENCES paises (id),
-  
+  REFERENCES paises (id_pais),
+
   CONSTRAINT fk_clien_resi
   FOREIGN KEY (id_pais_resi)
-  REFERENCES paises (id));
-  
+  REFERENCES paises (id_pais));
+
 ALTER TABLE fans_menores
   ADD(
   CONSTRAINT fk_fan_represen
   FOREIGN KEY (id_representante)
   REFERENCES clientes (id_lego),
-  
+
   CONSTRAINT fk_fan_nacio
   FOREIGN KEY (id_pais_nacio)
-  REFERENCES paises (id));
-  
+  REFERENCES paises (id_pais));
+
 ALTER TABLE recibos_inscripcion
   ADD CONSTRAINT fk_recibo_tour
   FOREIGN KEY (id_tour)
@@ -99,7 +107,7 @@ ALTER TABLE inscritos
   CONSTRAINT fk_inscritos_recibo
   FOREIGN KEY (id_tour, nro_reci)
   REFERENCES recibos_inscripcion (id_tour, nro_reci),
-  
+
   CONSTRAINT fk_inscritos_cliente
   FOREIGN KEY (id_clien)
   REFERENCES clientes (id_lego),
@@ -113,20 +121,19 @@ ALTER TABLE entradas
   FOREIGN KEY (id_tour, nro_reci)
   REFERENCES recibos_inscripcion (id_tour, nro_reci);
 
-
---FUNCIONES 
+--FUNCIONES
 CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
     BEGIN
     RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
     END edad;
 /
 
---TRIGGERS 
+--TRIGGERS
 CREATE OR REPLACE TRIGGER validar_clien
 BEFORE INSERT OR UPDATE OF fec_naci, id_pais_nacio ON clientes
 FOR EACH ROW
 DECLARE
-    v_edad         NUMBER;
+    v_edad           NUMBER;
     v_pertenece_ue BOOLEAN;
 BEGIN
     v_edad := edad(:NEW.fec_naci);
@@ -141,7 +148,7 @@ BEGIN
     SELECT pertenece_ue
       INTO v_pertenece_ue
       FROM paises
-     WHERE id = :NEW.id_pais_nacio;
+     WHERE id_pais = :NEW.id_pais_nacio;
 
     IF NOT v_pertenece_ue THEN
         IF :NEW.pasaporte IS NULL OR :NEW.fec_ven_pas IS NULL THEN
@@ -173,7 +180,7 @@ CREATE OR REPLACE TRIGGER validar_fan_menor
 BEFORE INSERT OR UPDATE OF fec_naci,id_representante,id_pais_nacio ON fans_menores
 FOR EACH ROW
 DECLARE
-    v_edad         NUMBER;
+    v_edad           NUMBER;
     v_pertenece_ue BOOLEAN;
 BEGIN
     v_edad := edad(:NEW.fec_naci);
@@ -202,7 +209,7 @@ BEGIN
     SELECT pertenece_ue
       INTO v_pertenece_ue
       FROM paises
-     WHERE id = :NEW.id_pais_nacio;
+     WHERE id_pais = :NEW.id_pais_nacio;
 
     IF NOT v_pertenece_ue THEN
         IF :NEW.pasaporte IS NULL OR :NEW.fec_ven_pas IS NULL THEN
@@ -229,16 +236,16 @@ EXCEPTION
 END;
 /
 
-INSERT INTO paises (id, nombre, continente, nacionalidad, pertenece_ue)
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (1, 'España', 'EU', 'Española', TRUE);
 
-INSERT INTO paises (id, nombre, continente, nacionalidad, pertenece_ue)
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (2, 'Venezuela', 'AM', 'Venezolana', FALSE);
 
-INSERT INTO paises (id, nombre, continente, nacionalidad, pertenece_ue)
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (3, 'Colombia', 'AM', 'Colombiana', FALSE);
 
-INSERT INTO paises (id, nombre, continente, nacionalidad, pertenece_ue)
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
 
 COMMIT;
@@ -308,7 +315,7 @@ INSERT INTO clientes VALUES (
 COMMIT;
 
 INSERT INTO fans_menores VALUES (
-201, 'Luis', 'Gomez', 'Perez', DATE '2007-05-12', 'FM1234', 
+201, 'Luis', 'Gomez', 'Perez', DATE '2007-05-12', 'FM1234',
 1, 101, 'Andres', NULL, NULL
 );
 
