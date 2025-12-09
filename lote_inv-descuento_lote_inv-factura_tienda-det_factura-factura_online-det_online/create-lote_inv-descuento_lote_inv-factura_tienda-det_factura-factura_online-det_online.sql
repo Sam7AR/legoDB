@@ -271,7 +271,7 @@ EXCEPTION
         RAISE_APPLICATION_ERROR(-20002, 'Error inesperado al procesar la factura: ' || SQLERRM);
 END PR_CALCULAR_FACTURA_ONLINE;
 /
--- Se usa el siguiente comando para ejecutar el procedimiento luego de insertar una fila de facturas_online (costo_total como NULL) y sus filas de dets_online necesarios
+-- Se usa el siguiente comando para ejecutar el procedimiento luego de insertar una fila de facturas_online (costo_total y puntos_leal como NULL) y sus filas de dets_online necesarios
 -- ejemplo de id_factura_online(1001)
 -- EXEC actualizar_factura_online(1001);
 
