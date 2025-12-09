@@ -9,7 +9,7 @@ CREATE TABLE juguetes (
     rgo_edad VARCHAR2(7) NOT NULL
         CONSTRAINT chk_juguetes_rgo_edad CHECK (rgo_edad IN ('0-2', '3-4', '5-6', '7-8', '9-11', '12+', 'adultos')),
     
-    rgo_precio VARCHAR2(1) NOT NULL
+    rgo_precio CHAR NOT NULL
         CONSTRAINT chk_juguetes_rgo_precio CHECK (rgo_precio IN ('A', 'B', 'C', 'D')),
     
     cant_pzas NUMBER
@@ -19,8 +19,7 @@ CREATE TABLE juguetes (
     
     instrucciones VARCHAR2(260),
     
-    es_set VARCHAR2(1) NOT NULL
-        CONSTRAINT chk_juguetes_es_set CHECK (es_set IN ('S', 'N')),
+    es_set BOOLEAN NOT NULL,
     
     id_set_padre NUMBER
 );
@@ -40,7 +39,7 @@ DECLARE
     v_es_set_padre JUGUETES.es_set%TYPE;
 BEGIN
     
-    IF :NEW.es_set = 'S' AND :NEW.id_set_padre IS NOT NULL THEN
+    IF :NEW.es_set = TRUE AND :NEW.id_set_padre IS NOT NULL THEN
         RAISE_APPLICATION_ERROR(
             -20104,
             'Error: Un SET no puede tener id_set_padre (debe ser NULL)'
@@ -48,7 +47,7 @@ BEGIN
     END IF;
 
     
-    IF :NEW.es_set = 'N' AND :NEW.id_set_padre IS NOT NULL THEN
+    IF :NEW.es_set = FALSE AND :NEW.id_set_padre IS NOT NULL THEN
         
         SELECT es_set 
         INTO v_es_set_padre 
@@ -56,10 +55,10 @@ BEGIN
         WHERE id = :NEW.id_set_padre;
 
         
-        IF v_es_set_padre != 'S' THEN
+        IF v_es_set_padre != TRUE THEN
             RAISE_APPLICATION_ERROR(
                 -20105,
-                'Error: id_set_padre debe referenciar un SET (es_set = ''S'')'
+                'Error: id_set_padre debe referenciar un SET (es_set = TRUE)'
             );
         END IF;
     END IF;

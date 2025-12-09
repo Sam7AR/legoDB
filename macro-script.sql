@@ -151,7 +151,7 @@ CREATE TABLE juguetes (
     rgo_edad VARCHAR2(7) NOT NULL
         CONSTRAINT chk_juguetes_rgo_edad CHECK (rgo_edad IN ('0-2', '3-4', '5-6', '7-8', '9-11', '12+', 'adultos')),
     
-    rgo_precio VARCHAR2(1) NOT NULL
+    rgo_precio CHAR NOT NULL
         CONSTRAINT chk_juguetes_rgo_precio CHECK (rgo_precio IN ('A', 'B', 'C', 'D')),
     
     cant_pzas NUMBER
@@ -161,8 +161,7 @@ CREATE TABLE juguetes (
     
     instrucciones VARCHAR2(260),
     
-    es_set VARCHAR2(1) NOT NULL
-        CONSTRAINT chk_juguetes_es_set CHECK (es_set IN ('S', 'N')),
+    es_set BOOLEAN NOT NULL,
     
     id_set_padre NUMBER
 );
@@ -192,6 +191,14 @@ CREATE TABLE prods_relacionados (
 
     CONSTRAINT pk_prods_rela
         PRIMARY KEY (id_jgt_base, id_jgt_rela)
+);
+
+CREATE TABLE hist_precios (
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+    precio NUMBER NOT NULL,
+    id_juguete NUMBER NOT NULL,
+    CONSTRAINT pk_hist_precios PRIMARY KEY (fecha_inicio, id_juguete)
 );
 
 --ALTERS
@@ -318,13 +325,32 @@ ADD (
         REFERENCES JUGUETES(id)
 );
 
+ALTER TABLE hist_precios
+ADD (
+    CONSTRAINT fk_hist_precios_id_juguete
+        FOREIGN KEY (id_juguete)
+        REFERENCES JUGUETES(id)
+);
+
 --FUNCIONES
 CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
     BEGIN
     RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
     END edad;
 /
-
+--PROCEDIMIENTOS
+CREATE OR REPLACE PROCEDURE registrar_precio_juguete (
+    p_precio   NUMBER,
+    p_id_juguete NUMBER
+)
+IS
+BEGIN
+    -- Inserta nuevo precio con SYSDATE automáticamente
+    INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, p_precio, p_id_juguete);
+    
+    COMMIT; 
+END;
+/
 --TRIGGERS
 --CLIENTES
 CREATE OR REPLACE TRIGGER validar_clien
@@ -470,7 +496,7 @@ DECLARE
     v_es_set_padre JUGUETES.es_set%TYPE;
 BEGIN
     
-    IF :NEW.es_set = 'S' AND :NEW.id_set_padre IS NOT NULL THEN
+    IF :NEW.es_set = TRUE AND :NEW.id_set_padre IS NOT NULL THEN
         RAISE_APPLICATION_ERROR(
             -20104,
             'Error: Un SET no puede tener id_set_padre (debe ser NULL)'
@@ -478,7 +504,7 @@ BEGIN
     END IF;
 
     
-    IF :NEW.es_set = 'N' AND :NEW.id_set_padre IS NOT NULL THEN
+    IF :NEW.es_set = FALSE AND :NEW.id_set_padre IS NOT NULL THEN
         
         SELECT es_set 
         INTO v_es_set_padre 
@@ -486,10 +512,10 @@ BEGIN
         WHERE id = :NEW.id_set_padre;
 
         
-        IF v_es_set_padre != 'S' THEN
+        IF v_es_set_padre != TRUE THEN
             RAISE_APPLICATION_ERROR(
                 -20105,
-                'Error: id_set_padre debe referenciar un SET (es_set = ''S'')'
+                'Error: id_set_padre debe referenciar un SET (es_set = TRUE)'
             );
         END IF;
     END IF;
@@ -501,6 +527,48 @@ EXCEPTION
         );
 END;
 /
+
+CREATE OR REPLACE TRIGGER trg_hist_precios_automatico
+BEFORE INSERT ON hist_precios
+FOR EACH ROW
+DECLARE
+    v_ultimo_activo DATE;
+BEGIN
+    
+    UPDATE hist_precios 
+    SET fecha_fin = SYSDATE
+    WHERE id_juguete = :NEW.id_juguete AND fecha_fin IS NULL;
+    
+    
+    CASE
+        WHEN :NEW.precio < 10 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'A'
+            WHERE id = :NEW.id_juguete;
+            
+        WHEN :NEW.precio BETWEEN 10 AND 70 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'B'
+            WHERE id = :NEW.id_juguete;
+            
+        WHEN :NEW.precio > 70 AND :NEW.precio <= 200 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'C'
+            WHERE id = :NEW.id_juguete;
+            
+        WHEN :NEW.precio > 200 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'D'
+            WHERE id = :NEW.id_juguete;
+            
+        ELSE
+            NULL;  
+    END CASE;
+    
+    
+END;
+/
+
 --INSERTS
 --PAISES
 INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
@@ -699,23 +767,23 @@ INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES
 
 --JUGUETES
 -- 1. SETS
-INSERT INTO juguetes VALUES (1, 'Star Wars Millennium Falcon', '9-11', 'D', 1350, 'Set avanzado con detalles de la nave espacial', 'MillenniumFalcon_75192.pdf', 'S', NULL);
+INSERT INTO juguetes VALUES (1, 'Star Wars Millennium Falcon', '9-11', 'D', 1350, 'Set avanzado con detalles de la nave espacial', 'MillenniumFalcon_75192.pdf', TRUE, NULL);
 
-INSERT INTO juguetes VALUES (2, 'Harry Potter Hogwarts Castle', '12+', 'D', 6020, 'Castillo de Hogwarts con figuras detalladas', 'HogwartsCastle_71043.pdf', 'S', NULL);
+INSERT INTO juguetes VALUES (2, 'Harry Potter Hogwarts Castle', '12+', 'D', 6020, 'Castillo de Hogwarts con figuras detalladas', 'HogwartsCastle_71043.pdf', TRUE, NULL);
 
-INSERT INTO juguetes VALUES (3, 'Minecraft The Nether Fortress', '7-8', 'B', 675, 'Edificio y criaturas del Nether para Minecraft', 'NetherFortress_21132.pdf', 'S', NULL);
+INSERT INTO juguetes VALUES (3, 'Minecraft The Nether Fortress', '7-8', 'B', 675, 'Edificio y criaturas del Nether para Minecraft', 'NetherFortress_21132.pdf', TRUE, NULL);
 
 -- 2. JUGUETES HIJOS
-INSERT INTO juguetes VALUES (4, 'X-Wing Fighter', '9-11', 'C', 727, 'Caza estelar de la Alianza Rebelde', 'XWing_75155.pdf', 'N', 1);
+INSERT INTO juguetes VALUES (4, 'X-Wing Fighter', '9-11', 'C', 727, 'Caza estelar de la Alianza Rebelde', 'XWing_75155.pdf', FALSE, 1);
 
-INSERT INTO juguetes VALUES (5, 'Dementor Figure', '12+', 'B', 3, 'Figuras de dementores para Hogwarts', 'Dementor_75969.pdf', 'N', 2);
+INSERT INTO juguetes VALUES (5, 'Dementor Figure', '12+', 'B', 3, 'Figuras de dementores para Hogwarts', 'Dementor_75969.pdf', FALSE, 2);
 
-INSERT INTO juguetes VALUES (6, 'Nether Zombie Pigman', '7-8', 'B', 5, 'Figura de zombie Pigman del Nether', 'ZombiePigman_21163.pdf', 'N', 3);
+INSERT INTO juguetes VALUES (6, 'Nether Zombie Pigman', '7-8', 'B', 5, 'Figura de zombie Pigman del Nether', 'ZombiePigman_21163.pdf', FALSE, 3);
 
-INSERT INTO juguetes VALUES (7, 'Micro-scale Creeper', '7-8', 'A', 14, 'Pequeña figura de Creeper explosivo', 'CreeperMicro_21141.pdf', 'N', 3);
+INSERT INTO juguetes VALUES (7, 'Micro-scale Creeper', '7-8', 'A', 14, 'Pequeña figura de Creeper explosivo', 'CreeperMicro_21141.pdf', FALSE, 3);
 
 -- 3. JUGUETE INDEPENDIENTE
-INSERT INTO juguetes VALUES (8, 'LEGO City Police Patrol', '5-6', 'B', 245, 'Vehículo patrulla de policía con minifiguras', 'PolicePatrol_60239.pdf', 'N', NULL);
+INSERT INTO juguetes VALUES (8, 'LEGO City Police Patrol', '5-6', 'B', 245, 'Vehículo patrulla de policía con minifiguras', 'PolicePatrol_60239.pdf', FALSE, NULL);
 
 -- Star Wars (tema 1) + sus series (5,6,7)
 INSERT INTO T_J (id_tema, id_juguete) VALUES (1, 1);  -- Star Wars → Millennium Falcon
@@ -774,3 +842,13 @@ INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (3, 7);
 INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (7, 3);
 INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (6, 7);
 INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (7, 6);
+
+-- HISTORICOS DE PRECIOS DE JUGUETES (también se puede usar el procedimiento registrar_precio_juguete)
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 299.99, 1);  -- Millennium Falcon
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 449.99, 2);  -- Hogwarts Castle  
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 89.99, 3);   -- Nether Fortress
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 129.99, 4);  -- X-Wing Fighter
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 19.99, 5);   -- Dementor Figure
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 9.99, 6);    -- Zombie Pigman
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 4.99, 7);    -- Micro Creeper
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 29.99, 8);   -- Police Patrol
