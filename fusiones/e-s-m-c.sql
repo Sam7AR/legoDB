@@ -1518,7 +1518,6 @@ EXCEPTION
 END venta_es_gratis;
 /
 
-
 CREATE OR REPLACE PROCEDURE registrar_factura_online (
     p_id_cliente IN facturas_online.id_cliente%TYPE,
     p_detalles   IN det_fac_tab
@@ -1594,25 +1593,32 @@ BEGIN
     FOR i IN 1 .. p_detalles.COUNT LOOP
 
         BEGIN
-            SELECT c.id_pais,
-                   c.id_juguete,
-                   h.precio,
-                   c.lim_compra_ol
-              INTO v_id_pais_cat,
-                   v_id_juguete_cat,
-                   v_precio_unit,
-                   v_lim_comp_on
-              FROM catalogos c, juguetes j, hist_precios h
+            SELECT c.lim_compra_ol
+              INTO v_lim_comp_on
+              FROM catalogos c
              WHERE c.id_juguete = p_detalles(i).id_juguete
-               AND c.id_pais    = v_id_pais_resi
-               AND j.id     = h.id_juguete
-               AND h.fecha_fin IS NULL;
+               AND c.id_pais    = v_id_pais_resi;
         EXCEPTION
             WHEN NO_DATA_FOUND THEN
                 RAISE_APPLICATION_ERROR(
                     -21004,
                     'El juguete con id = ' || p_detalles(i).id_juguete ||
                     ' no está en el catálogo del país de residencia del cliente.'
+                );
+        END;
+        
+        BEGIN
+            SELECT h.precio
+              INTO v_precio_unit
+              FROM hist_precios h
+             WHERE h.id_juguete   = p_detalles(i).id_juguete
+               AND h.fecha_fin IS NULL;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                RAISE_APPLICATION_ERROR(
+                    -23006,
+                    'El juguete id = ' || p_detalles(i).id_juguete ||
+                    ' no presenta registros en el historico de precios.'
                 );
         END;
 
@@ -1661,4 +1667,197 @@ BEGIN
            puntos_leal = v_puntos_leal
     WHERE  nro_fact = v_nro_fact;
 END registrar_factura_online;
+/
+
+CREATE OR REPLACE PROCEDURE registrar_factura_tienda (
+    p_id_tienda  IN facturas_tiendas.id_tienda%TYPE,
+    p_id_cliente IN facturas_tiendas.id_cliente%TYPE,
+    p_detalles   IN det_fac_tab
+) IS
+    v_fec_emi        facturas_tiendas.fec_emi%TYPE := SYSDATE;
+    v_nro_fact       facturas_tiendas.nro_fact%TYPE;
+    v_costo_tot      facturas_tiendas.costo_tot%TYPE := 0;
+
+    v_id_pais_tienda tiendas_fisicas.id_pais%TYPE;
+
+    v_stock_total    NUMBER;
+    v_cant_pend      NUMBER;
+
+    v_nro_lote       lotes_inventarios.nro_lote%TYPE;
+    v_stock_lote     lotes_inventarios.cant_stock%TYPE;
+    v_cant_desc      descuentos_lotes_inventarios.cant_desc%TYPE;
+    v_id_desc        descuentos_lotes_inventarios.id_desc%TYPE;
+
+    v_precio_unit    NUMBER(8,2);
+
+    v_renglon        dets_facturas.id_renglon%TYPE := 0;
+BEGIN
+
+    BEGIN
+        SELECT id_pais
+          INTO v_id_pais_tienda
+          FROM tiendas_fisicas
+         WHERE id_tienda = p_id_tienda;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(
+                -23001,
+                'La tienda con id  = ' || p_id_tienda || ' no existe.'
+            );
+    END;
+
+    BEGIN
+        SELECT 1
+          INTO v_stock_total    -- solo para aprovechar la variable
+          FROM clientes
+         WHERE id_lego = p_id_cliente;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(
+                -23002,
+                'El cliente con id = ' || p_id_cliente || ' no existe.'
+            );
+    END;
+
+    IF p_detalles IS NULL OR p_detalles.COUNT = 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -23003,
+            'La factura física debe contener al menos un ítem.'
+        );
+    END IF;
+
+    SELECT NVL(MAX(nro_fact), 0) + 1
+      INTO v_nro_fact
+      FROM facturas_tiendas
+     WHERE id_tienda = p_id_tienda;
+
+
+    INSERT INTO facturas_tiendas (
+        id_tienda,
+        nro_fact,
+        fec_emi,
+        id_cliente,
+        costo_tot
+    ) VALUES (
+        p_id_tienda,
+        v_nro_fact,
+        v_fec_emi,
+        p_id_cliente,
+        NULL
+    );
+
+
+    FOR i IN 1 .. p_detalles.COUNT LOOP
+       
+        SELECT NVL(SUM(cant_stock), 0)
+          INTO v_stock_total
+          FROM lotes_inventarios
+         WHERE id_tienda = p_id_tienda
+           AND id_juguete = p_detalles(i).id_juguete;
+
+        IF v_stock_total < p_detalles(i).cantidad THEN
+            RAISE_APPLICATION_ERROR(
+                -23005,
+                'Stock insuficiente para el juguete id = ' || p_detalles(i).id_juguete ||
+                ' en la tienda ' || p_id_tienda ||
+                '. Solicitado: ' || p_detalles(i).cantidad ||
+                ', Disponible: ' || v_stock_total
+            );
+        END IF;
+
+        BEGIN
+            SELECT h.precio
+              INTO v_precio_unit
+              FROM hist_precios h
+             WHERE h.id_juguete   =p_detalles(i).id_juguete
+               AND h.fecha_fin IS NULL;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                RAISE_APPLICATION_ERROR(
+                    -23006,
+                    'El juguete id = ' || p_detalles(i).id_juguete ||
+                    ' no presenta registros en el historico de precios.'
+                );
+        END;
+
+
+        v_cant_pend := p_detalles(i).cantidad;
+
+        WHILE v_cant_pend > 0 LOOP
+            BEGIN
+                SELECT nro_lote, cant_stock
+                  INTO v_nro_lote, v_stock_lote
+                  FROM lotes_inventarios
+                 WHERE id_tienda  = p_id_tienda
+                   AND id_juguete = p_detalles(i).id_juguete
+                   AND cant_stock > 0
+                 ORDER BY nro_lote
+                 FETCH FIRST 1 ROWS ONLY;
+            END;
+
+            v_cant_desc := LEAST(v_cant_pend, v_stock_lote);
+
+            UPDATE lotes_inventarios
+               SET cant_stock = cant_stock - v_cant_desc
+             WHERE id_tienda  = p_id_tienda
+               AND id_juguete = p_detalles(i).id_juguete
+               AND nro_lote   = v_nro_lote;
+
+
+            SELECT NVL(MAX(id_desc), 0) + 1
+              INTO v_id_desc
+              FROM descuentos_lotes_inventarios
+             WHERE id_tienda  = p_id_tienda
+               AND id_juguete = p_detalles(i).id_juguete
+               AND nro_lote   = v_nro_lote;
+
+            INSERT INTO descuentos_lotes_inventarios (
+                id_tienda,
+                id_juguete,
+                nro_lote,
+                id_desc,
+                fecha,
+                cant_desc
+            ) VALUES (
+                p_id_tienda,
+                p_detalles(i).id_juguete,
+                v_nro_lote,
+                v_id_desc,
+                v_fec_emi,
+                v_cant_desc
+            );
+
+           
+            v_renglon := v_renglon + 1;
+
+            INSERT INTO dets_facturas (
+                id_tienda,
+                nro_fact,
+                id_renglon,
+                tipo_clien,
+                cantidad,
+                id_juguete,
+                nro_lote
+            ) VALUES (
+                p_id_tienda,
+                v_nro_fact,
+                v_renglon,
+                p_detalles(i).tipo_clien,
+                v_cant_desc,
+                p_detalles(i).id_juguete,
+                v_nro_lote
+            );
+
+
+            v_costo_tot := v_costo_tot + (v_cant_desc * v_precio_unit);
+
+            v_cant_pend := v_cant_pend - v_cant_desc;
+        END LOOP;
+    END LOOP;
+
+    UPDATE facturas_tiendas
+       SET costo_tot = v_costo_tot
+     WHERE id_tienda = p_id_tienda
+       AND nro_fact  = v_nro_fact;
+END registrar_factura_tienda;
 /
