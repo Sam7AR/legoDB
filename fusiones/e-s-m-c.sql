@@ -677,6 +677,45 @@ BEGIN
 END;
 /
 
+CREATE OR REPLACE TRIGGER trg_valida_lote_catalogo
+BEFORE INSERT OR UPDATE ON lotes_inventarios
+FOR EACH ROW
+DECLARE
+    v_id_pais   tiendas_fisicas.id_pais%TYPE;
+    v_existe     NUMBER;
+BEGIN
+    BEGIN
+        SELECT t.id_pais
+          INTO v_id_pais
+          FROM tiendas_fisicas t
+         WHERE t.id_tienda = :NEW.id_tienda;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(
+                -20000,
+                'La tienda con id = ' || :NEW.id_tienda || ' no existe.'
+            );
+    END;
+
+    BEGIN
+        SELECT COUNT(*)
+          INTO v_existe
+          FROM catalogos c
+         WHERE c.id_pais    = v_id_pais
+           AND c.id_juguete = :NEW.id_juguete;
+    IF v_existe = 0 THEN
+            RAISE_APPLICATION_ERROR(
+                -20001,
+                'El juguete id = ' || :NEW.id_juguete ||
+                ' no está en el catálogo del país de la tienda (id_pais = ' || v_id_pais || ').'
+            );
+    END IF;
+    END;
+END trg_valida_lote_catalogo;
+/
+
+
+
 CREATE OR REPLACE TRIGGER validar_clien
 BEFORE INSERT OR UPDATE OF fec_naci ON clientes
 FOR EACH ROW
@@ -1817,6 +1856,53 @@ INSERT INTO fans_menores VALUES (
 205, 'Adriana', 'Suarez', 'Pena', DATE '2008-12-25', 'FM8899',
 3, 105, 'Maria', 'Q555888', DATE '2031-07-07'
 );
+
+--LOTE INVENTARIO
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (7, 1, 1, 5);     -- lote 1, 5 unidades
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (7, 1, 2, 3);     -- lote 2, 3 unidades
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (7, 5, 1, 4);     -- lote 1, 4 unidades
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (7, 5, 2, 6);     -- lote 2, 6 unidades
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (7, 14, 1, 10);   -- lote 1, 10 unidades
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (8, 1, 1, 2);     -- menos stock, útil para casos borde
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (8, 7, 1, 3);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (8, 7, 2, 5);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (8, 15, 1, 8);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (5, 12, 1, 6);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (5, 12, 2, 4);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (3, 27, 1, 12);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (3, 13, 1, 15);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (1, 21, 1, 5);
+
+INSERT INTO lotes_inventarios (id_tienda, id_juguete, nro_lote, cant_stock)
+VALUES (1, 6, 1, 7);
 
 COMMIT;
 
