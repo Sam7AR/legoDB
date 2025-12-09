@@ -1,6 +1,16 @@
 BEGIN
+   
    FOR rec IN (SELECT table_name FROM user_tables ORDER BY table_name) LOOP
       EXECUTE IMMEDIATE 'DROP TABLE ' || rec.table_name || ' CASCADE CONSTRAINTS';
+   END LOOP;
+
+   
+   FOR rec IN (SELECT sequence_name FROM user_sequences) LOOP
+      EXECUTE IMMEDIATE 'DROP SEQUENCE ' || rec.sequence_name;
+   END LOOP;
+
+   FOR rec IN (SELECT type_name FROM user_types) LOOP
+       EXECUTE IMMEDIATE 'DROP TYPE ' || rec.type_name || ' FORCE';
    END LOOP;
 END;
 /
