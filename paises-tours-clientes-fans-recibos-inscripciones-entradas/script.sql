@@ -1,10 +1,10 @@
-DROP TABLE entradas CASCADE CONSTRAINTS;
-DROP TABLE inscritos CASCADE CONSTRAINTS;
-DROP TABLE recibos_inscripcion CASCADE CONSTRAINTS;
-DROP TABLE fans_menores CASCADE CONSTRAINTS;
-DROP TABLE clientes CASCADE CONSTRAINTS;
-DROP TABLE tours CASCADE CONSTRAINTS;
-DROP TABLE paises CASCADE CONSTRAINTS;
+DROP TABLE entradas;
+DROP TABLE inscritos;
+DROP TABLE recibos_inscripcion;
+DROP TABLE fans_menores;
+DROP TABLE clientes;
+DROP TABLE tours;
+DROP TABLE paises;
 
 CREATE TABLE paises (
     id_pais              NUMBER(3)     NOT NULL CONSTRAINT pk_pais PRIMARY KEY,
@@ -31,7 +31,8 @@ CREATE TABLE clientes (
     id_pais_resi         NUMBER(3) NOT NULL,
     s_nombre             VARCHAR2(20),
     pasaporte            VARCHAR2(9),
-    fec_ven_pas          DATE
+    fec_ven_pas          DATE,
+    CONSTRAINT uq_clien_doc_pais UNIQUE(id_pais_nacio,doc_iden)
 );
 
 CREATE TABLE fans_menores (
@@ -45,7 +46,8 @@ CREATE TABLE fans_menores (
     id_representante     NUMBER(7),
     s_nombre             VARCHAR2(20),
     pasaporte            VARCHAR2(9),
-    fec_ven_pas          DATE
+    fec_ven_pas          DATE,
+    CONSTRAINT uq_fan_doc_pais UNIQUE(id_pais_nacio,doc_iden)
 );
 
 CREATE TABLE recibos_inscripcion (
@@ -64,6 +66,7 @@ CREATE TABLE inscritos (
     id_clien             NUMBER(7),
     id_fan_men           NUMBER(7),
     CONSTRAINT pk_inscritos PRIMARY KEY(id_tour,nro_reci,id_ins),
+    CONSTRAINT uq_visitante_tour UNIQUE(id_tour,id_clien, id_fan_men),
     CONSTRAINT clien_fan_exclu CHECK(
                                     (id_clien IS NOT NULL AND id_fan_men IS NULL) OR
                                     (id_clien IS NULL AND id_fan_men IS NOT NULL))
@@ -106,7 +109,8 @@ ALTER TABLE inscritos
   ADD(
   CONSTRAINT fk_inscritos_recibo
   FOREIGN KEY (id_tour, nro_reci)
-  REFERENCES recibos_inscripcion (id_tour, nro_reci),
+  REFERENCES recibos_inscripcion (id_tour, nro_reci)
+  ON DELETE CASCADE,
 
   CONSTRAINT fk_inscritos_cliente
   FOREIGN KEY (id_clien)
@@ -130,11 +134,10 @@ CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
 
 --TRIGGERS
 CREATE OR REPLACE TRIGGER validar_clien
-BEFORE INSERT OR UPDATE OF fec_naci, id_pais_nacio ON clientes
+BEFORE INSERT OR UPDATE OF fec_naci ON clientes
 FOR EACH ROW
 DECLARE
     v_edad           NUMBER;
-    v_pertenece_ue BOOLEAN;
 BEGIN
     v_edad := edad(:NEW.fec_naci);
 
@@ -144,34 +147,6 @@ BEGIN
             'El cliente debe tener al menos 21 años.'
         );
     END IF;
-
-    SELECT pertenece_ue
-      INTO v_pertenece_ue
-      FROM paises
-     WHERE id_pais = :NEW.id_pais_nacio;
-
-    IF NOT v_pertenece_ue THEN
-        IF :NEW.pasaporte IS NULL OR :NEW.fec_ven_pas IS NULL THEN
-            RAISE_APPLICATION_ERROR(
-                -20005,
-                'Clientes no nacidos en la UE deben especificar pasaporte con su fecha de vencimiento.'
-            );
-        END IF;
-
-        IF :NEW.fec_ven_pas <= SYSDATE THEN
-            RAISE_APPLICATION_ERROR(
-                -20006,
-                'La fecha de vencimiento del pasaporte debe ser posterior a la fecha actual.'
-            );
-        END IF;
-    END IF;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        RAISE_APPLICATION_ERROR(
-            -20007,
-            'Pais de nacimiento no encontrado'
-        );
 END;
 /
 
@@ -249,6 +224,10 @@ INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
 
 COMMIT;
+
+INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
+VALUES (DATE '2025-10-01', 36, 2100.00);
+
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
 VALUES (DATE '2026-10-01', 3, 2500.00);
