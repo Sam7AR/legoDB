@@ -1,3 +1,4 @@
+--RUTINA PARA ELIMINAR TODOS LOS OBJETOS EN EL ESQUEMA
 BEGIN
 
    FOR rec IN (SELECT view_name FROM user_views) LOOP
@@ -17,8 +18,29 @@ BEGIN
    END LOOP;
 END;
 /
---E
 
+--TIPOS DECLARADOS
+
+    CREATE OR REPLACE TYPE id_tab AS TABLE OF NUMBER;
+    /
+
+  -- parametros de detalle de factura
+    CREATE OR REPLACE TYPE det_fac_params AS OBJECT (
+        id_juguete  NUMBER(5),
+        cantidad    NUMBER(7),
+        tipo_clien  CHAR(2)       -- 'MA' o 'ME'
+    );
+    /
+
+    -- Tabla de detalles de factura 
+    CREATE OR REPLACE TYPE det_fac_tab AS TABLE OF det_fac_params;
+    /
+
+ --SECUENCIAS
+CREATE SEQUENCE id_fact_online INCREMENT BY 1 START WITH 1; 
+
+
+--CREATES DE LAS TABLAS
 CREATE TABLE paises (
     id_pais              NUMBER(3) NOT NULL CONSTRAINT pk_pais PRIMARY KEY,
     nombre               VARCHAR2(50)  NOT NULL,
@@ -62,13 +84,201 @@ CREATE TABLE horarios (
 );
 
 CREATE TABLE telefonos (
-    id_tienda  NUMBER(5)  NOT NULL,
+    id_tienda  NUMBER(5)    NOT NULL,
     cod_pais   VARCHAR2(5)  NOT NULL,
     cod_area   VARCHAR2(5)  NOT NULL,
     numero     VARCHAR2(15) NOT NULL,
     CONSTRAINT pk_telefono PRIMARY KEY (id_tienda, cod_pais, cod_area, numero)
 );
 
+CREATE TABLE temas (
+    id           NUMBER(7)     NOT NULL CONSTRAINT pk_temas PRIMARY KEY,
+    nombre       VARCHAR2(50)  NOT NULL
+                 CONSTRAINT chk_temas_nombre CHECK (LENGTH(nombre) >= 4)
+                 CONSTRAINT uq_temas_nombre UNIQUE,
+    descripcion  VARCHAR2(450) NOT NULL,
+    tipo         VARCHAR2(5)   NOT NULL
+                 CONSTRAINT chk_temas_tipo CHECK (tipo IN ('tema', 'serie')), 
+    id_tema_padre NUMBER(7)  
+);
+
+CREATE TABLE juguetes (
+    id            NUMBER(7) NOT NULL CONSTRAINT pk_juguetes PRIMARY KEY, 
+    nombre        VARCHAR2(50) NOT NULL
+                  CONSTRAINT chk_juguetes_nombre CHECK (LENGTH(nombre) >= 3)
+                  CONSTRAINT uq_juguetes_nombre UNIQUE,
+    rgo_edad      VARCHAR2(7) NOT NULL
+                  CONSTRAINT chk_juguetes_rgo_edad CHECK (rgo_edad IN ('0-2', '3-4', '5-6', '7-8', '9-11', '12+', 'adultos')),
+    rgo_precio    CHAR(1) NOT NULL
+                  CONSTRAINT chk_juguetes_rgo_precio CHECK (rgo_precio IN ('A', 'B', 'C', 'D')),
+    descripcion   VARCHAR2(450) NOT NULL,
+    es_set        BOOLEAN NOT NULL,
+    cant_pzas     NUMBER(5) CONSTRAINT chk_juguetes_cant_pzas CHECK (cant_pzas > 0),
+    id_set_padre  NUMBER,
+    instrucciones VARCHAR2(260)    
+);
+
+CREATE TABLE T_J (
+    id_tema    NUMBER(7) NOT NULL,
+    id_juguete NUMBER(7) NOT NULL,
+
+    CONSTRAINT pk_t_j
+        PRIMARY KEY (id_tema, id_juguete)
+);
+
+CREATE TABLE catalogos (
+    lim_compra_ol NUMBER(2) NOT NULL
+        CONSTRAINT chk_catalogos_lim_compra_ol CHECK (lim_compra_ol > 0),
+        
+    id_pais NUMBER(3) NOT NULL,
+    id_juguete NUMBER(7) NOT NULL,
+    
+    CONSTRAINT pk_catalogos 
+        PRIMARY KEY (id_pais, id_juguete)
+);
+
+CREATE TABLE prods_relacionados (
+    id_jgt_base NUMBER(7) NOT NULL,
+    id_jgt_rela NUMBER(7) NOT NULL,
+
+    CONSTRAINT pk_prods_rela
+        PRIMARY KEY (id_jgt_base, id_jgt_rela)
+);
+
+CREATE TABLE hist_precios (
+    fecha_inicio DATE NOT NULL,
+    precio NUMBER NOT NULL,
+    id_juguete NUMBER NOT NULL,
+    fecha_fin DATE,
+    CONSTRAINT pk_hist_precios PRIMARY KEY (fecha_inicio, id_juguete)
+);
+
+CREATE TABLE tours (
+    fec_inic             DATE CONSTRAINT pk_tour PRIMARY KEY,
+    cupos_tot            NUMBER(4) NOT NULL,
+    precio_ent           NUMBER(6,2) NOT NULL
+);
+
+CREATE TABLE clientes (
+    id_lego              NUMBER(7) NOT NULL CONSTRAINT pk_cliente PRIMARY KEY,
+    p_nombre             VARCHAR2(20) NOT NULL,
+    p_apellido           VARCHAR2(20) NOT NULL,
+    s_apellido           VARCHAR2(20) NOT NULL,
+    fec_naci             DATE NOT NULL,
+    doc_iden             VARCHAR2(20) NOT NULL,
+    id_pais_nacio        NUMBER(3) NOT NULL,
+    id_pais_resi         NUMBER(3) NOT NULL,
+    s_nombre             VARCHAR2(20),
+    pasaporte            VARCHAR2(9),
+    fec_ven_pas          DATE,
+    CONSTRAINT uq_clien_doc_pais UNIQUE(id_pais_nacio,doc_iden)
+);
+
+CREATE TABLE fans_menores (
+    id_fan               NUMBER(7) NOT NULL CONSTRAINT pk_fan_menor PRIMARY KEY,
+    p_nombre             VARCHAR2(20) NOT NULL,
+    p_apellido           VARCHAR2(20) NOT NULL,
+    s_apellido           VARCHAR2(20) NOT NULL,
+    fec_naci             DATE NOT NULL,
+    doc_iden             VARCHAR2(20) NOT NULL,
+    id_pais_nacio        NUMBER(3) NOT NULL,
+    id_representante     NUMBER(7),
+    s_nombre             VARCHAR2(20),
+    pasaporte            VARCHAR2(9),
+    fec_ven_pas          DATE,
+    CONSTRAINT uq_fan_doc_pais UNIQUE(id_pais_nacio,doc_iden)
+);
+
+CREATE TABLE recibos_inscripcion (
+    id_tour              DATE NOT NULL,
+    nro_reci             NUMBER(4) NOT NULL,
+    costo_tot            NUMBER(8,2) NOT NULL,
+    estatus              VARCHAR2(9) NOT NULL CONSTRAINT check_recibo_estatus CHECK (estatus IN ('pendiente','pagado')),
+    fec_emi              DATE,
+    CONSTRAINT pk_recibo_ins PRIMARY KEY(id_tour,nro_reci)
+);
+
+CREATE TABLE inscritos (
+    id_tour              DATE NOT NULL,
+    nro_reci             NUMBER(4) NOT NULL,
+    id_ins               NUMBER(2) NOT NULL,
+    id_clien             NUMBER(7),
+    id_fan_men           NUMBER(7),
+    CONSTRAINT pk_inscritos PRIMARY KEY(id_tour,nro_reci,id_ins),
+    CONSTRAINT uq_visitante_tour UNIQUE(id_tour,id_clien, id_fan_men),
+    CONSTRAINT clien_fan_exclu CHECK(
+                                    (id_clien IS NOT NULL AND id_fan_men IS NULL) OR
+                                    (id_clien IS NULL AND id_fan_men IS NOT NULL))
+);
+
+CREATE TABLE entradas (
+    id_tour              DATE NOT NULL,
+    nro_reci             NUMBER(4) NOT NULL,
+    nro_ent              NUMBER(4) NOT NULL,
+    tipo_asis            VARCHAR2(6) NOT NULL CONSTRAINT check_tipo_asis CHECK (tipo_asis IN ('adulto','menor')),
+    CONSTRAINT pk_entradas PRIMARY KEY(id_tour,nro_reci,nro_ent)
+);
+
+CREATE TABLE lotes_inventarios (
+    id_tienda           NUMBER(5)       NOT NULL,
+    id_juguete          NUMBER(6)       NOT NULL,
+    nro_lote            NUMBER(5)       NOT NULL,
+    cant_stock          NUMBER(6)       NOT NULL CONSTRAINT check_cant_stock CHECK(cant_stock >= 0),
+    CONSTRAINT pk_lote_inv PRIMARY KEY(id_tienda, id_juguete, nro_lote)
+);
+
+CREATE TABLE descuentos_lotes_inventarios (
+    id_tienda           NUMBER(5)       NOT NULL,
+    id_juguete          NUMBER(6)       NOT NULL,
+    nro_lote            NUMBER(5)       NOT NULL,
+    id_desc             NUMBER(5)       NOT NULL,
+    fecha               DATE            NOT NULL,
+    cant_desc           NUMBER(6)       NOT NULL,
+    CONSTRAINT pk_desc_lote_inv PRIMARY KEY(id_tienda, id_juguete, nro_lote, id_desc)
+);
+
+CREATE TABLE facturas_tiendas (
+    id_tienda           NUMBER(5)       NOT NULL,
+    nro_fact            NUMBER(7)       NOT NULL,
+    fec_emi             DATE            NOT NULL,
+    id_cliente          NUMBER(7)       NOT NULL,
+    costo_tot           NUMBER(8,2),
+    CONSTRAINT pk_fact_tien PRIMARY KEY(id_tienda, nro_fact)
+);
+
+CREATE TABLE dets_facturas (
+    id_tienda           NUMBER(5)       NOT NULL,
+    nro_fact            NUMBER(7)       NOT NULL,
+    id_renglon          NUMBER(3)       NOT NULL,
+    tipo_clien          CHAR(2)         NOT NULL CONSTRAINT check_tipo_clien CHECK(tipo_clien IN ('MA','ME')),
+    cantidad            NUMBER(7)       NOT NULL CONSTRAINT check_cant_det CHECK(cantidad > 0),
+    id_juguete          NUMBER(6)       NOT NULL,
+    nro_lote            NUMBER(5)       NOT NULL,
+    CONSTRAINT pk_det_fact PRIMARY KEY(id_tienda, nro_fact, id_renglon)
+);
+
+CREATE TABLE facturas_online (
+    nro_fact            NUMBER(8)       NOT NULL CONSTRAINT pk_fact_on PRIMARY KEY,
+    fec_emi             DATE            NOT NULL,
+    id_cliente          NUMBER(7)       NOT NULL,
+    costo_tot           NUMBER(8,2),
+    puntos_leal         NUMBER(3),
+    venta_gratis        BOOLEAN
+);
+
+
+
+CREATE TABLE dets_online (
+    nro_fact            NUMBER(8)       NOT NULL,
+    id_renglon          NUMBER(3)       NOT NULL,
+    tipo_clien          CHAR(2)         NOT NULL CONSTRAINT check_tipo_clien_on CHECK(tipo_clien IN ('MA','ME')),
+    cantidad            NUMBER(7)       NOT NULL CONSTRAINT check_cant_det_on CHECK(cantidad > 0),
+    id_pais_cat         NUMBER(3)       NOT NULL,
+    id_juguete_cat      NUMBER(5)       NOT NULL,
+    CONSTRAINT pk_det_fact_on PRIMARY KEY(nro_fact, id_renglon)
+);
+
+--ALTERS PARA AGREGAR LAS FK
 ALTER TABLE estados
   ADD CONSTRAINT fk_estado_pais
   FOREIGN KEY (id_pais)
@@ -93,229 +303,7 @@ ALTER TABLE telefonos
   ADD CONSTRAINT fk_telefono_tienda
   FOREIGN KEY (id_tienda)
   REFERENCES tiendas_fisicas (id_tienda);
-  
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (1, 'España', 'EU', 'Española', TRUE);
 
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (2, 'Venezuela', 'AM', 'Venezolana', FALSE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (3, 'Colombia', 'AM', 'Colombiana', FALSE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (5, 'Reino Unido', 'EU', 'Británica', FALSE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (6, 'Rumanía', 'EU', 'Rumana', FALSE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (7, 'Canadá', 'AM', 'Canadiense', FALSE);
-
-COMMIT;
-
--- España
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (1, 1, 'País Vasco');
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (1, 2, 'Comunidad de Madrid');
-
--- Reino Unido
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (5, 1, 'Escocia');
-
--- Rumanía
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (6, 1, 'Brașov');
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (6, 2, 'Cluj');
-
--- Canadá
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (7, 1, 'Quebec');
-INSERT INTO estados (id_pais, id_estado, nombre)
-VALUES (7, 2, 'Ontario');
-
--- Reino Unido (Escocia)
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (5, 1, 1, 'Edimburgo');
-
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (5, 1, 2, 'Glasgow');
-
--- Rumanía
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (6, 1, 1, 'Brașov');
-
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (6, 2, 1, 'Cluj-Napoca');
-
--- Canadá
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (7, 1, 1, 'Pointe-Claire');
-
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (7, 2, 1, 'Ottawa');
-
--- España
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (1, 1, 1, 'Bilbao');
-
-INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
-VALUES (1, 2, 1, 'Leganés');
-
-COMMIT;
-
--- 1) Reino Unido
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (1, 'LEGO® Store Edinburgh', 'St James Quarter, Edinburgh', 5, 1, 1);
-
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (2, 'LEGO® Store Glasgow', 'Buchanan Galleries, Glasgow', 5, 1, 2);
-
--- 2) Rumanía
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (3, 'LEGO® Store Coresi Shopping Centre', 'Coresi Shopping Resort, Brașov', 6, 1, 1);
-
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (4, 'LEGO® Store VIVO! Mall', 'VIVO! Cluj-Napoca', 6, 2, 1);
-
--- 3) Canadá
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (5, 'LEGO® Store Montreal - Pointe-Claire', 'Fairview Pointe-Claire, QC', 7, 1, 1);
-
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (6, 'LEGO® Store Ottawa', 'Rideau Centre, Ottawa, ON', 7, 2, 1);
-
--- 4) España
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (7, 'LEGO® Store Bilbao', 'Centro Comercial Zubiarte, Bilbao', 1, 1, 1);
-
-INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
-VALUES (8, 'LEGO® Store Parquesur', 'Centro Comercial Parquesur, Leganés', 1, 2, 1);
-
-COMMIT;
-
--- Tienda 1 a 8, lunes a sábado
-INSERT INTO horarios VALUES (1,1,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
-INSERT INTO horarios VALUES (1,2,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
-INSERT INTO horarios VALUES (1,3,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
-INSERT INTO horarios VALUES (1,4,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
-INSERT INTO horarios VALUES (1,5,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
-INSERT INTO horarios VALUES (1,6,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
-INSERT INTO horarios VALUES (1,7,TO_DATE('11:00','HH24:MI'),TO_DATE('19:00','HH24:MI'));
-
-INSERT INTO horarios SELECT 2, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-INSERT INTO horarios SELECT 3, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-INSERT INTO horarios SELECT 4, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-INSERT INTO horarios SELECT 5, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-INSERT INTO horarios SELECT 6, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-INSERT INTO horarios SELECT 7, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-INSERT INTO horarios SELECT 8, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
-
-COMMIT;
-
--- Reino Unido (44)
-INSERT INTO telefonos VALUES (1, '44', '131', '5551234');
-INSERT INTO telefonos VALUES (2, '44', '141', '5552345');
-
--- Rumanía (40)
-INSERT INTO telefonos VALUES (3, '40', '268', '5553456');
-INSERT INTO telefonos VALUES (4, '40', '264', '5554567');
-
--- Canadá (1)
-INSERT INTO telefonos VALUES (5, '1', '514', '5555678');
-INSERT INTO telefonos VALUES (6, '1', '613', '5556789');
-
--- España (34)
-INSERT INTO telefonos VALUES (7, '34', '944', '5557890');
-INSERT INTO telefonos VALUES (8, '34', '91',  '5558901');
-
-COMMIT;
-
-
---S
-
---CREATES
-CREATE TABLE temas (
-    id NUMBER(7) CONSTRAINT pk_temas PRIMARY KEY,
-    
-    nombre VARCHAR2(50) NOT NULL
-        CONSTRAINT chk_temas_nombre CHECK (LENGTH(nombre) >= 4)
-        CONSTRAINT uq_temas_nombre UNIQUE,
-        
-    descripcion VARCHAR2(450) NOT NULL,
-
-    tipo VARCHAR2(5) NOT NULL
-        CONSTRAINT chk_temas_tipo CHECK (tipo IN ('tema', 'serie')), 
-    
-    id_tema_padre NUMBER(7)  
-);
-
-CREATE TABLE juguetes (
-    id NUMBER(7)
-        CONSTRAINT pk_juguetes PRIMARY KEY,
-    
-    nombre VARCHAR2(50) NOT NULL
-        CONSTRAINT chk_juguetes_nombre CHECK (LENGTH(nombre) >= 3)
-        CONSTRAINT uq_juguetes_nombre UNIQUE,
-    
-    rgo_edad VARCHAR2(7) NOT NULL
-        CONSTRAINT chk_juguetes_rgo_edad CHECK (rgo_edad IN ('0-2', '3-4', '5-6', '7-8', '9-11', '12+', 'adultos')),
-    
-    rgo_precio CHAR NOT NULL
-        CONSTRAINT chk_juguetes_rgo_precio CHECK (rgo_precio IN ('A', 'B', 'C', 'D')),
-    
-    cant_pzas NUMBER
-        CONSTRAINT chk_juguetes_cant_pzas CHECK (cant_pzas > 0),
-    
-    descripcion VARCHAR2(450) NOT NULL,
-    
-    instrucciones VARCHAR2(260),
-    
-    es_set BOOLEAN NOT NULL,
-    
-    id_set_padre NUMBER
-);
-
-CREATE TABLE T_J (
-    id_tema    NUMBER(7) NOT NULL,
-    id_juguete NUMBER(7) NOT NULL,
-
-    CONSTRAINT pk_t_j
-        PRIMARY KEY (id_tema, id_juguete)
-);
-
-CREATE TABLE CATALOGOS (
-    lim_compra_ol NUMBER(2) NOT NULL
-        CONSTRAINT chk_catalogos_lim_compra_ol CHECK (lim_compra_ol > 0),
-        
-    id_pais NUMBER(3) NOT NULL,
-    id_juguete NUMBER(7) NOT NULL,
-    
-    CONSTRAINT pk_catalogos 
-        PRIMARY KEY (id_pais, id_juguete)
-);
-
-CREATE TABLE prods_relacionados (
-    id_jgt_base NUMBER(7) NOT NULL,
-    id_jgt_rela NUMBER(7) NOT NULL,
-
-    CONSTRAINT pk_prods_rela
-        PRIMARY KEY (id_jgt_base, id_jgt_rela)
-);
-
-CREATE TABLE hist_precios (
-    fecha_inicio DATE NOT NULL,
-    fecha_fin DATE,
-    precio NUMBER NOT NULL,
-    id_juguete NUMBER NOT NULL,
-    CONSTRAINT pk_hist_precios PRIMARY KEY (fecha_inicio, id_juguete)
-);
---ALTERS
 ALTER TABLE TEMAS
 ADD (
     CONSTRAINT fk_temas_serie_padre
@@ -368,21 +356,180 @@ ADD (
         FOREIGN KEY (id_juguete)
         REFERENCES JUGUETES(id)
 );
--- PROCEDURES
-CREATE OR REPLACE PROCEDURE registrar_precio_juguete (
-    p_precio   NUMBER,
-    p_id_juguete NUMBER
-)
-IS
-BEGIN
-    -- Inserta nuevo precio con SYSDATE automáticamente
-    INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, p_precio, p_id_juguete);
-    
-    COMMIT; 
-END;
+
+ALTER TABLE clientes
+  ADD(
+  CONSTRAINT fk_clien_nacio
+  FOREIGN KEY (id_pais_nacio)
+  REFERENCES paises (id_pais),
+
+  CONSTRAINT fk_clien_resi
+  FOREIGN KEY (id_pais_resi)
+  REFERENCES paises (id_pais));
+
+ALTER TABLE fans_menores
+  ADD(
+  CONSTRAINT fk_fan_represen
+  FOREIGN KEY (id_representante)
+  REFERENCES clientes (id_lego),
+
+  CONSTRAINT fk_fan_nacio
+  FOREIGN KEY (id_pais_nacio)
+  REFERENCES paises (id_pais));
+
+ALTER TABLE recibos_inscripcion
+  ADD CONSTRAINT fk_recibo_tour
+  FOREIGN KEY (id_tour)
+  REFERENCES tours (fec_inic);
+
+ALTER TABLE inscritos
+  ADD(
+  CONSTRAINT fk_inscritos_recibo
+  FOREIGN KEY (id_tour, nro_reci)
+  REFERENCES recibos_inscripcion (id_tour, nro_reci)
+  ON DELETE CASCADE,
+
+  CONSTRAINT fk_inscritos_cliente
+  FOREIGN KEY (id_clien)
+  REFERENCES clientes (id_lego),
+
+  CONSTRAINT fk_inscritos_fan
+  FOREIGN KEY (id_fan_men)
+  REFERENCES fans_menores (id_fan));
+
+ALTER TABLE entradas
+  ADD CONSTRAINT fk_entradas_recibo
+  FOREIGN KEY (id_tour, nro_reci)
+  REFERENCES recibos_inscripcion (id_tour, nro_reci);
+  
+ALTER TABLE lotes_inventarios
+  ADD(
+  CONSTRAINT fk_tien_lote
+  FOREIGN KEY (id_tienda)
+  REFERENCES tiendas_fisicas (id_tienda),
+
+  CONSTRAINT fk_jugue_lote
+  FOREIGN KEY (id_juguete)
+  REFERENCES juguetes (id));
+  
+ALTER TABLE descuentos_lotes_inventarios
+  ADD(
+  CONSTRAINT fk_desc_lote
+  FOREIGN KEY (id_tienda, id_juguete, nro_lote)
+  REFERENCES lotes_inventarios (id_tienda, id_juguete, nro_lote));
+
+ALTER TABLE facturas_tiendas
+  ADD(
+  CONSTRAINT fk_tien_fact
+  FOREIGN KEY (id_tienda)
+  REFERENCES tiendas_fisicas (id_tienda),
+
+  CONSTRAINT fk_clie_fact
+  FOREIGN KEY (id_cliente)
+  REFERENCES clientes (id_lego));
+  
+ALTER TABLE dets_facturas
+  ADD(
+  CONSTRAINT fk_detfact_tien
+  FOREIGN KEY (id_tienda, nro_fact)
+  REFERENCES facturas_tiendas (id_tienda, nro_fact),
+
+  CONSTRAINT fk_detfact_lote
+  FOREIGN KEY (id_tienda, id_juguete, nro_lote)
+  REFERENCES lotes_inventarios (id_tienda, id_juguete, nro_lote));
+  
+ALTER TABLE facturas_online
+  ADD(
+  CONSTRAINT fk_clie_fact_on
+  FOREIGN KEY (id_cliente)
+  REFERENCES clientes (id_lego));
+  
+ALTER TABLE dets_online
+  ADD(
+  CONSTRAINT fk_detfact_on
+  FOREIGN KEY (nro_fact)
+  REFERENCES facturas_online (nro_fact),
+
+  CONSTRAINT fk_detfact_on_cat
+  FOREIGN KEY (id_pais_cat, id_juguete_cat)
+  REFERENCES catalogos (id_pais, id_juguete));
+  
+--FUNCIONES:
+CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
+    BEGIN
+    RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
+    END edad;
 /
 
---TRIGGERS
+CREATE OR REPLACE FUNCTION calc_puntos_lealtad (
+    p_monto IN NUMBER
+) RETURN NUMBER IS
+    v_puntos NUMBER := 0;
+BEGIN
+    IF p_monto IS NULL OR p_monto <= 0 THEN
+        RETURN 0;
+        
+    -- A: menos de 10 €
+    ELSIF p_monto < 10 THEN
+        v_puntos := 5;
+        
+    -- B: 10 € a menos de 70 €
+    ELSIF p_monto <= 70 THEN
+        v_puntos := 20;
+        
+    -- C: 70 € a 200 € 
+    ELSIF p_monto <= 200 THEN
+        v_puntos := 50;
+        
+    -- D: más de 200 €
+    ELSE
+        v_puntos := 200;
+    END IF;
+
+    RETURN v_puntos;
+END calc_puntos_lealtad;
+/
+
+CREATE OR REPLACE FUNCTION venta_es_gratis (
+    p_id_cliente IN clientes.id_lego%TYPE
+) RETURN BOOLEAN IS
+    v_fec_ult_gratis  DATE;
+    v_suma_puntos     NUMBER := 0;
+BEGIN
+
+    SELECT MAX(fo.fec_emi)
+      INTO v_fec_ult_gratis
+      FROM facturas_online fo
+     WHERE fo.id_cliente = p_id_cliente
+       AND fo.venta_gratis = TRUE;  
+
+    IF v_fec_ult_gratis IS NOT NULL THEN
+        SELECT NVL(SUM(fo.puntos_leal),0)
+          INTO v_suma_puntos
+          FROM facturas_online fo
+         WHERE fo.id_cliente = p_id_cliente
+           AND fo.fec_emi > v_fec_ult_gratis;
+    ELSE
+        -- No tiene compras gratis previas → sumar todas
+        SELECT NVL(SUM(fo.puntos_leal),0)
+          INTO v_suma_puntos
+          FROM facturas_online fo
+         WHERE fo.id_cliente = p_id_cliente;
+    END IF;
+
+    IF v_suma_puntos >= 500 THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN FALSE;
+END venta_es_gratis;
+/ 
+  
+--TRIGGERS:
 CREATE OR REPLACE TRIGGER trg_temas_validar_padre_serie
 BEFORE INSERT OR UPDATE OF tipo, id_tema_padre
 ON TEMAS
@@ -410,7 +557,7 @@ BEGIN
     END IF;
 END;
 /
---JUGUETES
+
 CREATE OR REPLACE TRIGGER trg_relacion_set_juguetes
 BEFORE INSERT OR UPDATE OF es_set, id_set_padre
 ON JUGUETES
@@ -530,340 +677,94 @@ BEGIN
 END;
 /
 
---INSERTS
--- 1. TEMAS PRINCIPALES (sin padre)
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(1, 'Technic', 'Ingeniería mecánica avanzada con piezas funcionales', 'tema', NULL);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(2, 'Architecture', 'Réplicas detalladas de monumentos y ciudades', 'tema', NULL);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(3, 'LEGO FORTNITE', 'Universo de supervivencia y construcción estilo battle royale', 'tema', NULL);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(4, 'LEGO DISNEY', 'Personajes icónicos y mundos mágicos de Disney', 'tema', NULL);
-
--- 2. SERIES (sub-temas) de Technic
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(5, 'Super Cars', 'Autos deportivos con motores funcionales', 'serie', 1);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(6, 'Maquinaria Pesada', 'Excavadoras y grúas realistas', 'serie', 1);
-
--- 3. SERIES de Architecture
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(7, 'Skyline Series', 'Horizontes urbanos icónicos', 'serie', 2);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(8, 'World Wonders', 'Maravillas arquitectónicas mundiales', 'serie', 2);
-
--- 4. SERIES de LEGO FORTNITE
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(9, 'Survival Builds', 'Bases y estructuras de supervivencia', 'serie', 3);
-
-
--- 5. SERIES de LEGO DISNEY
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(11, 'Princess Castles', 'Castillos de princesas Disney', 'serie', 4);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(12, 'Pixar Adventures', 'Escenas de películas Pixar', 'serie', 4);
-
---Juguetes
-
--- 1. JUGUETES TECHNIC
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(17, 'Pack Super Autos Technic', 'adultos', 'D', 5431, 'McLaren P1 + BMW M 1000 RR + Ford GT', 'Pack_SuperAutos_Technic.pdf', TRUE, NULL);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(1, 'McLaren P1', 'adultos', 'D', 3874, 'McLaren P1 hiperdeportivo con suspensión activa', 'McLaren_P1_42172.pdf', FALSE, 17);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(2, 'BMW M 1000 RR', '12+', 'C', 1927, 'Moto BMW con motor giratorio y detalles realistas', 'BMW_M1000RR_42130.pdf', FALSE, 17);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(3, 'Ford GT 2022', 'adultos', 'D', 1476, 'Ford GT con puertas de mariposa y cockpit detallado', 'Ford_GT_42154.pdf', FALSE, 17);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(4, 'Ferrari FXX K', 'adultos', 'D', 1635, 'Ferrari de pista con aerodinámica activa', 'Ferrari_FXXK_42212.pdf', FALSE, NULL);
-
--- 2. JUGUETES ARCHITECTURE
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(21, 'Ciudades Europeas', 'adultos', 'C', 2700, 'París + Londres skylines', 'Ciudades_Europeas.pdf', TRUE, NULL);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(5, 'Cielo París', 'adultos', 'C', 1493, 'Réplica de París con Torre Eiffel y Notre Dame', 'Paris_21044.pdf', FALSE, 21);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(6, 'Cielo Londres', 'adultos', 'C', 1217, 'Londres con Big Ben, London Eye y Tower Bridge', 'London_21034.pdf', FALSE, 21);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(7, 'Castillo Neuschwanstein', 'adultos', 'C', 1493, 'Castillo bávaro de cuento de hadas alemán', 'Neuschwanstein_21063.pdf', FALSE, NULL);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(8, 'Pirámide de Guiza', 'adultos', 'B', 1476, 'Pirámide de Keops con Esfinge detallada', 'Guiza_21058.pdf', FALSE, NULL);
-
--- 3. JUGUETES LEGO FORTNITE
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(24, 'Criaturas Fortnite', '9-11', 'C', 1226, 'Klombo + Llama de Suministro', 'Criaturas_Fortnite.pdf', TRUE, NULL);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(9, 'Klombo', '9-11', 'B', 686, 'Criatura gigante del universo Fortnite', 'Klombo_77077.pdf', FALSE, 24);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(10, 'Llama de Suministro', '9-11', 'B', 540, 'Llama de suministros explosiva', 'Llama_Suministro_77071.pdf', FALSE, 24);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(11, 'Hamburguesa Durrr', '7-8', 'B', 301, 'Restaurante icónico de Fortnite', 'Durrr_Burger_77070.pdf', FALSE, NULL);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(12, 'Autobús de Batalla', '9-11', 'C', 912, 'Autobús de batalla con alas y propulsores', 'Battle_Bus_77073.pdf', FALSE, NULL);
-
--- 4. JUGUETES LEGO DISNEY
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(27, 'Colección Disney', '5-6', 'B', 438, 'Ángel + Heihei + Dumbo', 'Coleccion_Disney.pdf', TRUE, NULL);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(13, 'Ángel', '5-6', 'A', 144, 'Figurita coleccionable de Stitch como ángel', 'Angel_43257.pdf', FALSE, 27);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(14, 'Heihei', '5-6', 'A', 152, 'Gallo cómico de Moana', 'Heihei_43272.pdf', FALSE, 27);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(15, 'Dumbo', '3-4', 'A', 123, 'Elefantito volador de Disney clásico', 'Dumbo_40792.pdf', FALSE, 27);
-
-INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
-(16, 'Igor', '5-6', 'A', 142, 'Burro triste de Winnie the Pooh', 'Eeyore_40797.pdf', FALSE, NULL);
-
---T_J
-
--- 1. TECHNIC (tema=1, serie Super Cars=5)
-INSERT INTO T_J (id_tema, id_juguete) VALUES (1, 17);  -- Pack Super Autos Technic → tema Technic
-INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 1);   -- McLaren P1 → serie Super Cars
-INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 2);   -- BMW M 1000 RR → serie Super Cars
-INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 3);   -- Ford GT 2022 → serie Super Cars
-INSERT INTO T_J (id_tema, id_juguete) VALUES (1, 4);   -- Ferrari FXX K → tema Technic (individual)
-
--- 2. ARCHITECTURE (tema=2, serie Skyline Series=7)
-INSERT INTO T_J (id_tema, id_juguete) VALUES (2, 21);  -- Ciudades Europeas → tema Architecture
-INSERT INTO T_J (id_tema, id_juguete) VALUES (7, 5);   -- Cielo París → serie Skyline Series
-INSERT INTO T_J (id_tema, id_juguete) VALUES (7, 6);   -- Cielo Londres → serie Skyline Series
-INSERT INTO T_J (id_tema, id_juguete) VALUES (2, 7);   -- Castillo Neuschwanstein → tema Architecture
-INSERT INTO T_J (id_tema, id_juguete) VALUES (8, 8);   -- Pirámide de Guiza → serie World Wonders
-
--- 3. LEGO FORTNITE (tema=3, serie Survival Builds=9)
-INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 24);  -- Criaturas Fortnite → tema LEGO FORTNITE
-INSERT INTO T_J (id_tema, id_juguete) VALUES (9, 9);   -- Klombo → serie Survival Builds
-INSERT INTO T_J (id_tema, id_juguete) VALUES (9, 10);  -- Llama de Suministro → serie Survival Builds
-INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 11);  -- Hamburguesa Durrr → tema LEGO FORTNITE
-INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 12);  -- Autobús de Batalla → tema LEGO FORTNITE
-
--- 4. LEGO DISNEY (tema=4, serie Princess Castles=11)
-INSERT INTO T_J (id_tema, id_juguete) VALUES (4, 27);  -- Colección Disney → tema LEGO DISNEY
-INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 13); -- Ángel → serie Princess Castles
-INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 14); -- Heihei → serie Princess Castles
-INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 15); -- Dumbo → serie Princess Castles
-INSERT INTO T_J (id_tema, id_juguete) VALUES (4, 16);  -- Igor → tema LEGO DISNEY
-
---CATALOGOS
--- 1. TECHNIC - España (1), Alemania (4) - Límites bajos (productos premium)
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (2, 1, 17);  -- Pack Super Autos → España
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (1, 1, 1);   -- McLaren P1 → España
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (1, 1, 2);   -- BMW → España
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (2, 4, 17);  -- Pack Super Autos → Alemania
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (1, 4, 3);   -- Ford GT → Alemania
-
--- 2. ARCHITECTURE - Reino Unido (5), España (1) - Límites medios
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (3, 5, 21);  -- Ciudades Europeas → UK
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (5, 5, 6);   -- Cielo Londres → UK
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (4, 1, 5);   -- Cielo París → España
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (3, 1, 7);   -- Neuschwanstein → España
-
--- 3. FORTNITE - Colombia (3), Venezuela (2), Canadá (7) - Límites altos (popular)
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (8, 3, 24);  -- Criaturas Fortnite → Colombia
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (10, 3, 9);  -- Klombo → Colombia
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (7, 2, 10);  -- Llama → Venezuela
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (6, 7, 12);  -- Battle Bus → Canadá
-
--- 4. DISNEY - Rumanía (6), España (1) - Límites altos (niños)
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (12, 6, 27); -- Colección Disney → Rumanía
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (15, 6, 13); -- Ángel → Rumanía
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (10, 1, 14); -- Heihei → España
-INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (12, 1, 15); -- Dumbo → España
-
---PRODUCTOS RELACIONADOS
--- 1. TECHNIC - Autos relacionados con el Pack Super Autos
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (17, 4);  -- Pack Super Autos → Ferrari FXX K
-
-
--- 2. ARCHITECTURE - Ciudades y monumentos relacionados
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (21, 7);  -- Ciudades Europeas → Castillo Neuschwanstein
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (5, 6);    -- Cielo París → Cielo Londres
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (7, 8);    -- Neuschwanstein → Pirámide Guiza
-
--- 3. FORTNITE - Criaturas y vehículos relacionados
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (24, 11);  -- Criaturas Fortnite → Hamburguesa Durrr
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (9, 12);   -- Klombo → Autobús de Batalla
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (11, 10);  -- Hamburguesa Durrr → Llama Suministro
-
--- 4. DISNEY - Colección y figuras individuales
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (27, 16);  -- Colección Disney → Igor
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (13, 14);  -- Ángel → Heihei
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (14, 15);  -- Heihei → Dumbo
-
--- 5. CROSS-TEMA (relaciones entre temas diferentes)
-INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (1, 5);    -- McLaren P1 → Cielo París (velocidad vs arquitectura)
-
---HISTÓRICO DE PRECIOS
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 599.99, 17);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 399.99, 1);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 249.99, 2);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 349.99, 3);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 429.99, 4);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 199.99, 21);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 129.99, 5);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 109.99, 6);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 139.99, 7);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 89.99, 8);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 79.99, 24);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 49.99, 9);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 39.99, 10);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 29.99, 11);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 59.99, 12);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 39.99, 27);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 19.99, 13);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 19.99, 14);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 14.99, 15);
-INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 16.99, 16);
-
---M
-
-
-CREATE TABLE tours (
-    fec_inic             DATE CONSTRAINT pk_tour PRIMARY KEY,
-    cupos_tot            NUMBER(4) NOT NULL,
-    precio_ent           NUMBER(6,2) NOT NULL
-);
-
-CREATE TABLE clientes (
-    id_lego              NUMBER(7) NOT NULL CONSTRAINT pk_cliente PRIMARY KEY,
-    p_nombre             VARCHAR2(20) NOT NULL,
-    p_apellido           VARCHAR2(20) NOT NULL,
-    s_apellido           VARCHAR2(20) NOT NULL,
-    fec_naci             DATE NOT NULL,
-    doc_iden             VARCHAR2(20) NOT NULL,
-    id_pais_nacio        NUMBER(3) NOT NULL,
-    id_pais_resi         NUMBER(3) NOT NULL,
-    s_nombre             VARCHAR2(20),
-    pasaporte            VARCHAR2(9),
-    fec_ven_pas          DATE,
-    CONSTRAINT uq_clien_doc_pais UNIQUE(id_pais_nacio,doc_iden)
-);
-
-CREATE TABLE fans_menores (
-    id_fan               NUMBER(7) NOT NULL CONSTRAINT pk_fan_menor PRIMARY KEY,
-    p_nombre             VARCHAR2(20) NOT NULL,
-    p_apellido           VARCHAR2(20) NOT NULL,
-    s_apellido           VARCHAR2(20) NOT NULL,
-    fec_naci             DATE NOT NULL,
-    doc_iden             VARCHAR2(20) NOT NULL,
-    id_pais_nacio        NUMBER(3) NOT NULL,
-    id_representante     NUMBER(7),
-    s_nombre             VARCHAR2(20),
-    pasaporte            VARCHAR2(9),
-    fec_ven_pas          DATE,
-    CONSTRAINT uq_fan_doc_pais UNIQUE(id_pais_nacio,doc_iden)
-);
-
-CREATE TABLE recibos_inscripcion (
-    id_tour              DATE NOT NULL,
-    nro_reci             NUMBER(4) NOT NULL,
-    costo_tot            NUMBER(8,2) NOT NULL,
-    estatus              VARCHAR2(9) NOT NULL CONSTRAINT check_recibo_estatus CHECK (estatus IN ('pendiente','pagado')),
-    fec_emi              DATE,
-    CONSTRAINT pk_recibo_ins PRIMARY KEY(id_tour,nro_reci)
-);
-
-CREATE TABLE inscritos (
-    id_tour              DATE NOT NULL,
-    nro_reci             NUMBER(4) NOT NULL,
-    id_ins               NUMBER(2) NOT NULL,
-    id_clien             NUMBER(7),
-    id_fan_men           NUMBER(7),
-    CONSTRAINT pk_inscritos PRIMARY KEY(id_tour,nro_reci,id_ins),
-    CONSTRAINT uq_visitante_tour UNIQUE(id_tour,id_clien, id_fan_men),
-    CONSTRAINT clien_fan_exclu CHECK(
-                                    (id_clien IS NOT NULL AND id_fan_men IS NULL) OR
-                                    (id_clien IS NULL AND id_fan_men IS NOT NULL))
-);
-
-CREATE TABLE entradas (
-    id_tour              DATE NOT NULL,
-    nro_reci             NUMBER(4) NOT NULL,
-    nro_ent              NUMBER(4) NOT NULL,
-    tipo_asis            VARCHAR2(6) NOT NULL CONSTRAINT check_tipo_asis CHECK (tipo_asis IN ('adulto','menor')),
-    CONSTRAINT pk_entradas PRIMARY KEY(id_tour,nro_reci,nro_ent)
-);
-
-ALTER TABLE clientes
-  ADD(
-  CONSTRAINT fk_clien_nacio
-  FOREIGN KEY (id_pais_nacio)
-  REFERENCES paises (id_pais),
-
-  CONSTRAINT fk_clien_resi
-  FOREIGN KEY (id_pais_resi)
-  REFERENCES paises (id_pais));
-
-ALTER TABLE fans_menores
-  ADD(
-  CONSTRAINT fk_fan_represen
-  FOREIGN KEY (id_representante)
-  REFERENCES clientes (id_lego),
-
-  CONSTRAINT fk_fan_nacio
-  FOREIGN KEY (id_pais_nacio)
-  REFERENCES paises (id_pais));
-
-ALTER TABLE recibos_inscripcion
-  ADD CONSTRAINT fk_recibo_tour
-  FOREIGN KEY (id_tour)
-  REFERENCES tours (fec_inic);
-
-ALTER TABLE inscritos
-  ADD(
-  CONSTRAINT fk_inscritos_recibo
-  FOREIGN KEY (id_tour, nro_reci)
-  REFERENCES recibos_inscripcion (id_tour, nro_reci)
-  ON DELETE CASCADE,
-
-  CONSTRAINT fk_inscritos_cliente
-  FOREIGN KEY (id_clien)
-  REFERENCES clientes (id_lego),
-
-  CONSTRAINT fk_inscritos_fan
-  FOREIGN KEY (id_fan_men)
-  REFERENCES fans_menores (id_fan));
-
-ALTER TABLE entradas
-  ADD CONSTRAINT fk_entradas_recibo
-  FOREIGN KEY (id_tour, nro_reci)
-  REFERENCES recibos_inscripcion (id_tour, nro_reci);
-
---FUNCIONES
-CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
-    BEGIN
-    RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
-    END edad;
+CREATE OR REPLACE TRIGGER validar_clien
+BEFORE INSERT OR UPDATE OF fec_naci ON clientes
+FOR EACH ROW
+DECLARE
+    v_edad           NUMBER;
+BEGIN
+    v_edad := edad(:NEW.fec_naci);
+
+    IF v_edad < 21 THEN
+        RAISE_APPLICATION_ERROR(
+            -20001,
+            'El cliente debe tener al menos 21 años.'
+        );
+    END IF;
+END;
 /
---PROCEDIMIENTOS
 
-CREATE OR REPLACE TYPE id_tab AS TABLE OF NUMBER;
+CREATE OR REPLACE TRIGGER validar_fan_menor
+BEFORE INSERT OR UPDATE OF fec_naci,id_representante,id_pais_nacio ON fans_menores
+FOR EACH ROW
+DECLARE
+    v_edad           NUMBER;
+    v_pertenece_ue BOOLEAN;
+BEGIN
+    v_edad := edad(:NEW.fec_naci);
+
+    IF v_edad < 12 THEN
+        RAISE_APPLICATION_ERROR(
+            -20008,
+            'El fan debe tener al menos 12 años.'
+        );
+    END IF;
+
+    IF v_edad >= 21 THEN
+        RAISE_APPLICATION_ERROR(
+            -20009,
+            'El fan debe ser menor de 21 años.'
+        );
+    END IF;
+
+    IF v_edad < 18 AND :NEW.id_representante IS NULL THEN
+        RAISE_APPLICATION_ERROR(
+            -20010,
+            'Los fans menores de 18 años deben tener representante.'
+        );
+    END IF;
+
+    SELECT pertenece_ue
+      INTO v_pertenece_ue
+      FROM paises
+     WHERE id_pais = :NEW.id_pais_nacio;
+
+    IF NOT v_pertenece_ue THEN
+        IF :NEW.pasaporte IS NULL OR :NEW.fec_ven_pas IS NULL THEN
+            RAISE_APPLICATION_ERROR(
+                -20011,
+                'Fans no nacidos en la UE deben especificar pasaporte y fecha de vencimiento.'
+            );
+        END IF;
+
+        IF :NEW.fec_ven_pas <= SYSDATE THEN
+            RAISE_APPLICATION_ERROR(
+                -20012,
+                'La fecha de vencimiento del pasaporte debe ser posterior a la fecha actual.'
+            );
+        END IF;
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(
+            -20013,
+            'País no encontrado.'
+        );
+END;
+/
+
+--PROCEDIMIENTOS:
+
+CREATE OR REPLACE PROCEDURE registrar_precio_juguete (
+    p_precio   NUMBER,
+    p_id_juguete NUMBER
+)
+IS
+BEGIN
+    -- Inserta nuevo precio con SYSDATE automáticamente
+    INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, p_precio, p_id_juguete);
+END;
 /
 
 CREATE OR REPLACE PROCEDURE registrar_inscripcion_tour (
@@ -1147,375 +1048,6 @@ BEGIN
         );
     END LOOP;
 END confirmar_pago;
-/
-
---TRIGGERS
-CREATE OR REPLACE TRIGGER validar_clien
-BEFORE INSERT OR UPDATE OF fec_naci ON clientes
-FOR EACH ROW
-DECLARE
-    v_edad           NUMBER;
-BEGIN
-    v_edad := edad(:NEW.fec_naci);
-
-    IF v_edad < 21 THEN
-        RAISE_APPLICATION_ERROR(
-            -20001,
-            'El cliente debe tener al menos 21 años.'
-        );
-    END IF;
-END;
-/
-
-
-CREATE OR REPLACE TRIGGER validar_fan_menor
-BEFORE INSERT OR UPDATE OF fec_naci,id_representante,id_pais_nacio ON fans_menores
-FOR EACH ROW
-DECLARE
-    v_edad           NUMBER;
-    v_pertenece_ue BOOLEAN;
-BEGIN
-    v_edad := edad(:NEW.fec_naci);
-
-    IF v_edad < 12 THEN
-        RAISE_APPLICATION_ERROR(
-            -20008,
-            'El fan debe tener al menos 12 años.'
-        );
-    END IF;
-
-    IF v_edad >= 21 THEN
-        RAISE_APPLICATION_ERROR(
-            -20009,
-            'El fan debe ser menor de 21 años.'
-        );
-    END IF;
-
-    IF v_edad < 18 AND :NEW.id_representante IS NULL THEN
-        RAISE_APPLICATION_ERROR(
-            -20010,
-            'Los fans menores de 18 años deben tener representante.'
-        );
-    END IF;
-
-    SELECT pertenece_ue
-      INTO v_pertenece_ue
-      FROM paises
-     WHERE id_pais = :NEW.id_pais_nacio;
-
-    IF NOT v_pertenece_ue THEN
-        IF :NEW.pasaporte IS NULL OR :NEW.fec_ven_pas IS NULL THEN
-            RAISE_APPLICATION_ERROR(
-                -20011,
-                'Fans no nacidos en la UE deben especificar pasaporte y fecha de vencimiento.'
-            );
-        END IF;
-
-        IF :NEW.fec_ven_pas <= SYSDATE THEN
-            RAISE_APPLICATION_ERROR(
-                -20012,
-                'La fecha de vencimiento del pasaporte debe ser posterior a la fecha actual.'
-            );
-        END IF;
-    END IF;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        RAISE_APPLICATION_ERROR(
-            -20013,
-            'País no encontrado.'
-        );
-END;
-/
-
-INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2025-10-01', 36, 2081.00);
-
-
-INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-10-01', 3, 2081.00);
-
-INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-11-29', 5000, 2081.00 );
-
-INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-12-10', 4000, 2081.00);
-
-COMMIT;
-
-
-INSERT INTO clientes VALUES (
-101, 'Carlos', 'Gomez', 'Perez', DATE '1990-05-12', 'V1234567',
-1, 1, 'Andres', NULL, NULL
-);
-
-INSERT INTO clientes VALUES (
-102, 'Maria', 'Lopez', 'Hernandez', DATE '1988-11-03', 'E8765432',
-4, 4, NULL, NULL, NULL
-);
-
-INSERT INTO clientes VALUES (
-103, 'Jose', 'Martinez', 'Castro', DATE '1984-07-20', 'V1928374',
-2, 2, NULL, 'P9988776', DATE '2031-10-10'
-);
-
-INSERT INTO clientes VALUES (
-104, 'Lucia', 'Fernandez', 'Lopez', DATE '1992-08-29', 'E6629103',
-1, 3, 'Beatriz', NULL, NULL
-);
-
-INSERT INTO clientes VALUES (
-105, 'Miguel', 'Silva', 'Torres', DATE '1980-07-14', 'V4455667',
-3, 3, NULL, 'X1234567', DATE '2032-05-05'
-);
-
-INSERT INTO clientes VALUES (
-106, 'Ana', 'Ramirez', 'Soto', DATE '1995-09-10', 'E2233445',
-4, 4, 'Patricia', NULL, NULL
-);
-
-INSERT INTO clientes VALUES (
-107, 'Rafael', 'Vargas', 'Lopez', DATE '1982-03-25', 'V5566778',
-3, 1, NULL, 'C1122334', DATE '2030-12-31'
-);
-
-INSERT INTO clientes VALUES (
-108, 'Carmen', 'Diaz', 'Mendoza', DATE '1979-01-19', 'E3344556',
-1, 1, NULL, NULL, NULL
-);
-
-INSERT INTO clientes VALUES (
-109, 'Luis', 'Suarez', 'Pena', DATE '1994-06-04', 'V9988776',
-2, 2, 'Alejandro', 'M1234500', DATE '2035-01-01'
-);
-
-INSERT INTO clientes VALUES (
-110, 'Patricia', 'Moreno', 'Guzman', DATE '1987-12-30', 'E1122554',
-4, 4, NULL, NULL, NULL
-);
-
-COMMIT;
-
-INSERT INTO fans_menores VALUES (
-201, 'Luis', 'Gomez', 'Perez', DATE '2007-05-12', 'FM1234',
-1, 101, 'Andres', NULL, NULL
-);
-
-INSERT INTO fans_menores VALUES (
-202, 'Carla', 'Lopez', 'Soto', DATE '2006-11-03', 'FM2233',
-4, NULL, NULL, NULL, NULL
-);
-
-INSERT INTO fans_menores VALUES (
-203, 'Mateo', 'Ramirez', 'Diaz', DATE '2008-02-20', 'FM9988',
-2, 105, NULL, 'P1234567', DATE '2032-01-15'
-);
-
-INSERT INTO fans_menores VALUES (
-204, 'Sofia', 'Fernandez', 'Lopez', DATE '2005-09-15', 'FM5566',
-3, NULL, 'Beatriz', 'X112233', DATE '2030-12-31'
-);
-
-INSERT INTO fans_menores VALUES (
-205, 'Adriana', 'Suarez', 'Pena', DATE '2008-12-25', 'FM8899',
-3, 105, 'Maria', 'Q555888', DATE '2031-07-07'
-);
-
-COMMIT;
-
---C
-
-CREATE TABLE lotes_inventarios (
-    id_tienda           NUMBER(5)       NOT NULL,
-    id_juguete          NUMBER(6)       NOT NULL,
-    nro_lote            NUMBER(5)       NOT NULL,
-    cant_stock          NUMBER(6)       NOT NULL CONSTRAINT check_cant_stock CHECK(cant_stock >= 0),
-    CONSTRAINT pk_lote_inv PRIMARY KEY(id_tienda, id_juguete, nro_lote)
-);
-
-CREATE TABLE descuentos_lotes_inventarios (
-    id_tienda           NUMBER(5)       NOT NULL,
-    id_juguete          NUMBER(6)       NOT NULL,
-    nro_lote            NUMBER(5)       NOT NULL,
-    id_desc             NUMBER(5)       NOT NULL,
-    fecha               DATE            NOT NULL,
-    cant_desc           NUMBER(6)       NOT NULL,
-    CONSTRAINT pk_desc_lote_inv PRIMARY KEY(id_tienda, id_juguete, nro_lote, id_desc)
-);
-
-CREATE TABLE facturas_tiendas (
-    id_tienda           NUMBER(5)       NOT NULL,
-    nro_fact            NUMBER(7)       NOT NULL,
-    fec_emi             DATE            NOT NULL,
-    id_cliente          NUMBER(7)       NOT NULL,
-    costo_tot           NUMBER(8,2),
-    CONSTRAINT pk_fact_tien PRIMARY KEY(id_tienda, nro_fact)
-);
-
-CREATE TABLE dets_facturas (
-    id_tienda           NUMBER(5)       NOT NULL,
-    nro_fact            NUMBER(7)       NOT NULL,
-    id_renglon          NUMBER(3)       NOT NULL,
-    tipo_clien          CHAR(2)         NOT NULL CONSTRAINT check_tipo_clien CHECK(tipo_clien IN ('MA','ME')),
-    cantidad            NUMBER(7)       NOT NULL CONSTRAINT check_cant_det CHECK(cantidad > 0),
-    id_juguete          NUMBER(6)       NOT NULL,
-    nro_lote            NUMBER(5)       NOT NULL,
-    CONSTRAINT pk_det_fact PRIMARY KEY(id_tienda, nro_fact, id_renglon)
-);
-
-CREATE TABLE facturas_online (
-    nro_fact            NUMBER(8)       NOT NULL CONSTRAINT pk_fact_on PRIMARY KEY,
-    fec_emi             DATE            NOT NULL,
-    id_cliente          NUMBER(7)       NOT NULL,
-    costo_tot           NUMBER(8,2),
-    puntos_leal         NUMBER(3),
-    venta_gratis        BOOLEAN
-);
-
-CREATE SEQUENCE id_fact_online INCREMENT BY 1 START WITH 1; 
-
-
-CREATE TABLE dets_online (
-    nro_fact            NUMBER(8)       NOT NULL,
-    id_renglon          NUMBER(3)       NOT NULL,
-    tipo_clien          CHAR(2)         NOT NULL CONSTRAINT check_tipo_clien_on CHECK(tipo_clien IN ('MA','ME')),
-    cantidad            NUMBER(7)       NOT NULL CONSTRAINT check_cant_det_on CHECK(cantidad > 0),
-    id_pais_cat         NUMBER(3)       NOT NULL,
-    id_juguete_cat      NUMBER(5)       NOT NULL,
-    CONSTRAINT pk_det_fact_on PRIMARY KEY(nro_fact, id_renglon)
-);
-
-
-ALTER TABLE lotes_inventarios
-  ADD(
-  CONSTRAINT fk_tien_lote
-  FOREIGN KEY (id_tienda)
-  REFERENCES tiendas_fisicas (id_tienda),
-
-  CONSTRAINT fk_jugue_lote
-  FOREIGN KEY (id_juguete)
-  REFERENCES juguetes (id));
-  
-ALTER TABLE descuentos_lotes_inventarios
-  ADD(
-  CONSTRAINT fk_desc_lote
-  FOREIGN KEY (id_tienda, id_juguete, nro_lote)
-  REFERENCES lotes_inventarios (id_tienda, id_juguete, nro_lote));
-
-ALTER TABLE facturas_tiendas
-  ADD(
-  CONSTRAINT fk_tien_fact
-  FOREIGN KEY (id_tienda)
-  REFERENCES tiendas_fisicas (id_tienda),
-
-  CONSTRAINT fk_clie_fact
-  FOREIGN KEY (id_cliente)
-  REFERENCES clientes (id_lego));
-  
-ALTER TABLE dets_facturas
-  ADD(
-  CONSTRAINT fk_detfact_tien
-  FOREIGN KEY (id_tienda, nro_fact)
-  REFERENCES facturas_tiendas (id_tienda, nro_fact),
-
-  CONSTRAINT fk_detfact_lote
-  FOREIGN KEY (id_tienda, id_juguete, nro_lote)
-  REFERENCES lotes_inventarios (id_tienda, id_juguete, nro_lote));
-  
-ALTER TABLE facturas_online
-  ADD(
-  CONSTRAINT fk_clie_fact_on
-  FOREIGN KEY (id_cliente)
-  REFERENCES clientes (id_lego));
-  
-ALTER TABLE dets_online
-  ADD(
-  CONSTRAINT fk_detfact_on
-  FOREIGN KEY (nro_fact)
-  REFERENCES facturas_online (nro_fact),
-
-  CONSTRAINT fk_detfact_on_cat
-  FOREIGN KEY (id_pais_cat, id_juguete_cat)
-  REFERENCES catalogos (id_pais, id_juguete));
-  
-  -- parametros de detalle de factura
-CREATE OR REPLACE TYPE det_fac_params AS OBJECT (
-    id_juguete  NUMBER(5),
-    cantidad    NUMBER(7),
-    tipo_clien  CHAR(2)       -- 'MA' o 'ME'
-);
-/
-
--- Tabla de detalles de factura 
-CREATE OR REPLACE TYPE det_fac_tab AS TABLE OF det_fac_params;
-/
-
-CREATE OR REPLACE FUNCTION calc_puntos_lealtad (
-    p_monto IN NUMBER
-) RETURN NUMBER IS
-    v_puntos NUMBER := 0;
-BEGIN
-    IF p_monto IS NULL OR p_monto <= 0 THEN
-        RETURN 0;
-        
-    -- A: menos de 10 €
-    ELSIF p_monto < 10 THEN
-        v_puntos := 5;
-        
-    -- B: 10 € a menos de 70 €
-    ELSIF p_monto <= 70 THEN
-        v_puntos := 20;
-        
-    -- C: 70 € a 200 € 
-    ELSIF p_monto <= 200 THEN
-        v_puntos := 50;
-        
-    -- D: más de 200 €
-    ELSE
-        v_puntos := 200;
-    END IF;
-
-    RETURN v_puntos;
-END calc_puntos_lealtad;
-/
-
-CREATE OR REPLACE FUNCTION venta_es_gratis (
-    p_id_cliente IN clientes.id_lego%TYPE
-) RETURN BOOLEAN IS
-    v_fec_ult_gratis  DATE;
-    v_suma_puntos     NUMBER := 0;
-BEGIN
-
-    SELECT MAX(fo.fec_emi)
-      INTO v_fec_ult_gratis
-      FROM facturas_online fo
-     WHERE fo.id_cliente = p_id_cliente
-       AND fo.venta_gratis = TRUE;  
-
-    IF v_fec_ult_gratis IS NOT NULL THEN
-        SELECT NVL(SUM(fo.puntos_leal),0)
-          INTO v_suma_puntos
-          FROM facturas_online fo
-         WHERE fo.id_cliente = p_id_cliente
-           AND fo.fec_emi > v_fec_ult_gratis;
-    ELSE
-        -- No tiene compras gratis previas → sumar todas
-        SELECT NVL(SUM(fo.puntos_leal),0)
-          INTO v_suma_puntos
-          FROM facturas_online fo
-         WHERE fo.id_cliente = p_id_cliente;
-    END IF;
-
-    IF v_suma_puntos >= 500 THEN
-        RETURN TRUE;
-    ELSE
-        RETURN FALSE;
-    END IF;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        RETURN FALSE;
-END venta_es_gratis;
 /
 
 CREATE OR REPLACE PROCEDURE registrar_factura_online (
@@ -1861,3 +1393,429 @@ BEGIN
        AND nro_fact  = v_nro_fact;
 END registrar_factura_tienda;
 /
+
+--INSERTS DE DATOS DE ENTRADA
+
+--Paises
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (1, 'España', 'EU', 'Española', TRUE);
+
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (2, 'Venezuela', 'AM', 'Venezolana', FALSE);
+
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (3, 'Colombia', 'AM', 'Colombiana', FALSE);
+
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
+
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (5, 'Reino Unido', 'EU', 'Británica', FALSE);
+
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (6, 'Rumanía', 'EU', 'Rumana', FALSE);
+
+INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
+VALUES (7, 'Canadá', 'AM', 'Canadiense', FALSE);
+
+
+-- Estados
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (1, 1, 'País Vasco');
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (1, 2, 'Comunidad de Madrid');
+
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (5, 1, 'Escocia');
+
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (6, 1, 'Brașov');
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (6, 2, 'Cluj');
+
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (7, 1, 'Quebec');
+INSERT INTO estados (id_pais, id_estado, nombre)
+VALUES (7, 2, 'Ontario');
+
+--Ciudades:
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (5, 1, 1, 'Edimburgo');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (5, 1, 2, 'Glasgow');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (6, 1, 1, 'Brașov');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (6, 2, 1, 'Cluj-Napoca');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (7, 1, 1, 'Pointe-Claire');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (7, 2, 1, 'Ottawa');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (1, 1, 1, 'Bilbao');
+
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre)
+VALUES (1, 2, 1, 'Leganés');
+
+--TIENDAS
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (1, 'LEGO® Store Edinburgh', 'St James Quarter, Edinburgh', 5, 1, 1);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (2, 'LEGO® Store Glasgow', 'Buchanan Galleries, Glasgow', 5, 1, 2);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (3, 'LEGO® Store Coresi Shopping Centre', 'Coresi Shopping Resort, Brașov', 6, 1, 1);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (4, 'LEGO® Store VIVO! Mall', 'VIVO! Cluj-Napoca', 6, 2, 1);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (5, 'LEGO® Store Montreal - Pointe-Claire', 'Fairview Pointe-Claire, QC', 7, 1, 1);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (6, 'LEGO® Store Ottawa', 'Rideau Centre, Ottawa, ON', 7, 2, 1);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (7, 'LEGO® Store Bilbao', 'Centro Comercial Zubiarte, Bilbao', 1, 1, 1);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (8, 'LEGO® Store Parquesur', 'Centro Comercial Parquesur, Leganés', 1, 2, 1);
+
+--Horarios 
+INSERT INTO horarios VALUES (1,1,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
+INSERT INTO horarios VALUES (1,2,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
+INSERT INTO horarios VALUES (1,3,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
+INSERT INTO horarios VALUES (1,4,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
+INSERT INTO horarios VALUES (1,5,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
+INSERT INTO horarios VALUES (1,6,TO_DATE('10:00','HH24:MI'),TO_DATE('21:00','HH24:MI'));
+INSERT INTO horarios VALUES (1,7,TO_DATE('11:00','HH24:MI'),TO_DATE('19:00','HH24:MI'));
+
+INSERT INTO horarios SELECT 2, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+INSERT INTO horarios SELECT 3, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+INSERT INTO horarios SELECT 4, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+INSERT INTO horarios SELECT 5, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+INSERT INTO horarios SELECT 6, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+INSERT INTO horarios SELECT 7, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+INSERT INTO horarios SELECT 8, dia, hora_aper, hora_cier FROM horarios WHERE id_tienda = 1;
+
+--Telefonos
+INSERT INTO telefonos VALUES (1, '44', '131', '5551234');
+INSERT INTO telefonos VALUES (2, '44', '141', '5552345');
+
+INSERT INTO telefonos VALUES (3, '40', '268', '5553456');
+INSERT INTO telefonos VALUES (4, '40', '264', '5554567');
+
+INSERT INTO telefonos VALUES (5, '1', '514', '5555678');
+INSERT INTO telefonos VALUES (6, '1', '613', '5556789');
+
+INSERT INTO telefonos VALUES (7, '34', '944', '5557890');
+INSERT INTO telefonos VALUES (8, '34', '91',  '5558901');
+
+--TEMAS SIN PADRE
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(1, 'Technic', 'Ingeniería mecánica avanzada con piezas funcionales', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(2, 'Architecture', 'Réplicas detalladas de monumentos y ciudades', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(3, 'LEGO FORTNITE', 'Universo de supervivencia y construcción estilo battle royale', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(4, 'LEGO DISNEY', 'Personajes icónicos y mundos mágicos de Disney', 'tema', NULL);
+
+-- 2. SERIES (sub-temas) de Technic
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(5, 'Super Cars', 'Autos deportivos con motores funcionales', 'serie', 1);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(6, 'Maquinaria Pesada', 'Excavadoras y grúas realistas', 'serie', 1);
+
+-- 3. SERIES de Architecture
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(7, 'Skyline Series', 'Horizontes urbanos icónicos', 'serie', 2);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(8, 'World Wonders', 'Maravillas arquitectónicas mundiales', 'serie', 2);
+
+-- 4. SERIES de LEGO FORTNITE
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(9, 'Survival Builds', 'Bases y estructuras de supervivencia', 'serie', 3);
+
+
+-- 5. SERIES de LEGO DISNEY
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(11, 'Princess Castles', 'Castillos de princesas Disney', 'serie', 4);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(12, 'Pixar Adventures', 'Escenas de películas Pixar', 'serie', 4);
+
+
+-- 1. JUGUETES TECHNIC
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(17, 'Pack Super Autos Technic', 'adultos', 'D', 5431, 'McLaren P1 + BMW M 1000 RR + Ford GT', 'Pack_SuperAutos_Technic.pdf', TRUE, NULL);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(1, 'McLaren P1', 'adultos', 'D', 3874, 'McLaren P1 hiperdeportivo con suspensión activa', 'McLaren_P1_42172.pdf', FALSE, 17);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(2, 'BMW M 1000 RR', '12+', 'C', 1927, 'Moto BMW con motor giratorio y detalles realistas', 'BMW_M1000RR_42130.pdf', FALSE, 17);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(3, 'Ford GT 2022', 'adultos', 'D', 1476, 'Ford GT con puertas de mariposa y cockpit detallado', 'Ford_GT_42154.pdf', FALSE, 17);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(4, 'Ferrari FXX K', 'adultos', 'D', 1635, 'Ferrari de pista con aerodinámica activa', 'Ferrari_FXXK_42212.pdf', FALSE, NULL);
+
+-- 2. JUGUETES ARCHITECTURE
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(21, 'Ciudades Europeas', 'adultos', 'C', 2700, 'París + Londres skylines', 'Ciudades_Europeas.pdf', TRUE, NULL);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(5, 'Cielo París', 'adultos', 'C', 1493, 'Réplica de París con Torre Eiffel y Notre Dame', 'Paris_21044.pdf', FALSE, 21);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(6, 'Cielo Londres', 'adultos', 'C', 1217, 'Londres con Big Ben, London Eye y Tower Bridge', 'London_21034.pdf', FALSE, 21);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(7, 'Castillo Neuschwanstein', 'adultos', 'C', 1493, 'Castillo bávaro de cuento de hadas alemán', 'Neuschwanstein_21063.pdf', FALSE, NULL);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(8, 'Pirámide de Guiza', 'adultos', 'B', 1476, 'Pirámide de Keops con Esfinge detallada', 'Guiza_21058.pdf', FALSE, NULL);
+
+-- 3. JUGUETES LEGO FORTNITE
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(24, 'Criaturas Fortnite', '9-11', 'C', 1226, 'Klombo + Llama de Suministro', 'Criaturas_Fortnite.pdf', TRUE, NULL);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(9, 'Klombo', '9-11', 'B', 686, 'Criatura gigante del universo Fortnite', 'Klombo_77077.pdf', FALSE, 24);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(10, 'Llama de Suministro', '9-11', 'B', 540, 'Llama de suministros explosiva', 'Llama_Suministro_77071.pdf', FALSE, 24);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(11, 'Hamburguesa Durrr', '7-8', 'B', 301, 'Restaurante icónico de Fortnite', 'Durrr_Burger_77070.pdf', FALSE, NULL);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(12, 'Autobús de Batalla', '9-11', 'C', 912, 'Autobús de batalla con alas y propulsores', 'Battle_Bus_77073.pdf', FALSE, NULL);
+
+-- 4. JUGUETES LEGO DISNEY
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(27, 'Colección Disney', '5-6', 'B', 438, 'Ángel + Heihei + Dumbo', 'Coleccion_Disney.pdf', TRUE, NULL);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(13, 'Ángel', '5-6', 'A', 144, 'Figurita coleccionable de Stitch como ángel', 'Angel_43257.pdf', FALSE, 27);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(14, 'Heihei', '5-6', 'A', 152, 'Gallo cómico de Moana', 'Heihei_43272.pdf', FALSE, 27);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(15, 'Dumbo', '3-4', 'A', 123, 'Elefantito volador de Disney clásico', 'Dumbo_40792.pdf', FALSE, 27);
+
+INSERT INTO JUGUETES (id, nombre, rgo_edad, rgo_precio, cant_pzas, descripcion, instrucciones, es_set, id_set_padre) VALUES 
+(16, 'Igor', '5-6', 'A', 142, 'Burro triste de Winnie the Pooh', 'Eeyore_40797.pdf', FALSE, NULL);
+
+--T_J
+
+-- 1. TECHNIC (tema=1, serie Super Cars=5)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (1, 17);  -- Pack Super Autos Technic → tema Technic
+INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 1);   -- McLaren P1 → serie Super Cars
+INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 2);   -- BMW M 1000 RR → serie Super Cars
+INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 3);   -- Ford GT 2022 → serie Super Cars
+INSERT INTO T_J (id_tema, id_juguete) VALUES (1, 4);   -- Ferrari FXX K → tema Technic (individual)
+
+-- 2. ARCHITECTURE (tema=2, serie Skyline Series=7)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (2, 21);  -- Ciudades Europeas → tema Architecture
+INSERT INTO T_J (id_tema, id_juguete) VALUES (7, 5);   -- Cielo París → serie Skyline Series
+INSERT INTO T_J (id_tema, id_juguete) VALUES (7, 6);   -- Cielo Londres → serie Skyline Series
+INSERT INTO T_J (id_tema, id_juguete) VALUES (2, 7);   -- Castillo Neuschwanstein → tema Architecture
+INSERT INTO T_J (id_tema, id_juguete) VALUES (8, 8);   -- Pirámide de Guiza → serie World Wonders
+
+-- 3. LEGO FORTNITE (tema=3, serie Survival Builds=9)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 24);  -- Criaturas Fortnite → tema LEGO FORTNITE
+INSERT INTO T_J (id_tema, id_juguete) VALUES (9, 9);   -- Klombo → serie Survival Builds
+INSERT INTO T_J (id_tema, id_juguete) VALUES (9, 10);  -- Llama de Suministro → serie Survival Builds
+INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 11);  -- Hamburguesa Durrr → tema LEGO FORTNITE
+INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 12);  -- Autobús de Batalla → tema LEGO FORTNITE
+
+-- 4. LEGO DISNEY (tema=4, serie Princess Castles=11)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (4, 27);  -- Colección Disney → tema LEGO DISNEY
+INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 13); -- Ángel → serie Princess Castles
+INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 14); -- Heihei → serie Princess Castles
+INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 15); -- Dumbo → serie Princess Castles
+INSERT INTO T_J (id_tema, id_juguete) VALUES (4, 16);  -- Igor → tema LEGO DISNEY
+
+--CATALOGOS
+-- 1. TECHNIC - España (1), Alemania (4) - Límites bajos (productos premium)
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (2, 1, 17);  -- Pack Super Autos → España
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (1, 1, 1);   -- McLaren P1 → España
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (1, 1, 2);   -- BMW → España
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (2, 4, 17);  -- Pack Super Autos → Alemania
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (1, 4, 3);   -- Ford GT → Alemania
+
+-- 2. ARCHITECTURE - Reino Unido (5), España (1) - Límites medios
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (3, 5, 21);  -- Ciudades Europeas → UK
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (5, 5, 6);   -- Cielo Londres → UK
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (4, 1, 5);   -- Cielo París → España
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (3, 1, 7);   -- Neuschwanstein → España
+
+-- 3. FORTNITE - Colombia (3), Venezuela (2), Canadá (7) - Límites altos (popular)
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (8, 3, 24);  -- Criaturas Fortnite → Colombia
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (10, 3, 9);  -- Klombo → Colombia
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (7, 2, 10);  -- Llama → Venezuela
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (6, 7, 12);  -- Battle Bus → Canadá
+
+-- 4. DISNEY - Rumanía (6), España (1) - Límites altos (niños)
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (12, 6, 27); -- Colección Disney → Rumanía
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (15, 6, 13); -- Ángel → Rumanía
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (10, 1, 14); -- Heihei → España
+INSERT INTO CATALOGOS (lim_compra_ol, id_pais, id_juguete) VALUES (12, 1, 15); -- Dumbo → España
+
+--PRODUCTOS RELACIONADOS
+-- 1. TECHNIC - Autos relacionados con el Pack Super Autos
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (17, 4);  -- Pack Super Autos → Ferrari FXX K
+
+
+-- 2. ARCHITECTURE - Ciudades y monumentos relacionados
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (21, 7);  -- Ciudades Europeas → Castillo Neuschwanstein
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (5, 6);    -- Cielo París → Cielo Londres
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (7, 8);    -- Neuschwanstein → Pirámide Guiza
+
+-- 3. FORTNITE - Criaturas y vehículos relacionados
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (24, 11);  -- Criaturas Fortnite → Hamburguesa Durrr
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (9, 12);   -- Klombo → Autobús de Batalla
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (11, 10);  -- Hamburguesa Durrr → Llama Suministro
+
+-- 4. DISNEY - Colección y figuras individuales
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (27, 16);  -- Colección Disney → Igor
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (13, 14);  -- Ángel → Heihei
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (14, 15);  -- Heihei → Dumbo
+
+-- 5. CROSS-TEMA (relaciones entre temas diferentes)
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (1, 5);    -- McLaren P1 → Cielo París (velocidad vs arquitectura)
+
+--HISTÓRICO DE PRECIOS
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 599.99, 17);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 399.99, 1);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 249.99, 2);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 349.99, 3);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 429.99, 4);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 199.99, 21);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 129.99, 5);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 109.99, 6);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 139.99, 7);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 89.99, 8);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 79.99, 24);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 49.99, 9);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 39.99, 10);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 29.99, 11);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 59.99, 12);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 39.99, 27);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 19.99, 13);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 19.99, 14);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 14.99, 15);
+INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, 16.99, 16);
+
+--TOURS
+
+INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
+VALUES (DATE '2025-10-01', 36, 2081.00);
+
+
+INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
+VALUES (DATE '2026-10-01', 3, 2081.00);
+
+INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
+VALUES (DATE '2026-11-29', 5000, 2081.00 );
+
+INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
+VALUES (DATE '2026-12-10', 4000, 2081.00);
+
+--CLIENTES
+
+INSERT INTO clientes VALUES (
+101, 'Carlos', 'Gomez', 'Perez', DATE '1990-05-12', 'V1234567',
+1, 1, 'Andres', NULL, NULL
+);
+
+INSERT INTO clientes VALUES (
+102, 'Maria', 'Lopez', 'Hernandez', DATE '1988-11-03', 'E8765432',
+4, 4, NULL, NULL, NULL
+);
+
+INSERT INTO clientes VALUES (
+103, 'Jose', 'Martinez', 'Castro', DATE '1984-07-20', 'V1928374',
+2, 2, NULL, 'P9988776', DATE '2031-10-10'
+);
+
+INSERT INTO clientes VALUES (
+104, 'Lucia', 'Fernandez', 'Lopez', DATE '1992-08-29', 'E6629103',
+1, 3, 'Beatriz', NULL, NULL
+);
+
+INSERT INTO clientes VALUES (
+105, 'Miguel', 'Silva', 'Torres', DATE '1980-07-14', 'V4455667',
+3, 3, NULL, 'X1234567', DATE '2032-05-05'
+);
+
+INSERT INTO clientes VALUES (
+106, 'Ana', 'Ramirez', 'Soto', DATE '1995-09-10', 'E2233445',
+4, 4, 'Patricia', NULL, NULL
+);
+
+INSERT INTO clientes VALUES (
+107, 'Rafael', 'Vargas', 'Lopez', DATE '1982-03-25', 'V5566778',
+3, 1, NULL, 'C1122334', DATE '2030-12-31'
+);
+
+INSERT INTO clientes VALUES (
+108, 'Carmen', 'Diaz', 'Mendoza', DATE '1979-01-19', 'E3344556',
+1, 1, NULL, NULL, NULL
+);
+
+INSERT INTO clientes VALUES (
+109, 'Luis', 'Suarez', 'Pena', DATE '1994-06-04', 'V9988776',
+2, 2, 'Alejandro', 'M1234500', DATE '2035-01-01'
+);
+
+INSERT INTO clientes VALUES (
+110, 'Patricia', 'Moreno', 'Guzman', DATE '1987-12-30', 'E1122554',
+4, 4, NULL, NULL, NULL
+);
+
+--FANS MENORES
+
+INSERT INTO fans_menores VALUES (
+201, 'Luis', 'Gomez', 'Perez', DATE '2007-05-12', 'FM1234',
+1, 101, 'Andres', NULL, NULL
+);
+
+INSERT INTO fans_menores VALUES (
+202, 'Carla', 'Lopez', 'Soto', DATE '2006-11-03', 'FM2233',
+4, NULL, NULL, NULL, NULL
+);
+
+INSERT INTO fans_menores VALUES (
+203, 'Mateo', 'Ramirez', 'Diaz', DATE '2008-02-20', 'FM9988',
+2, 105, NULL, 'P1234567', DATE '2032-01-15'
+);
+
+INSERT INTO fans_menores VALUES (
+204, 'Sofia', 'Fernandez', 'Lopez', DATE '2005-09-15', 'FM5566',
+3, NULL, 'Beatriz', 'X112233', DATE '2030-12-31'
+);
+
+INSERT INTO fans_menores VALUES (
+205, 'Adriana', 'Suarez', 'Pena', DATE '2008-12-25', 'FM8899',
+3, 105, 'Maria', 'Q555888', DATE '2031-07-07'
+);
+
+COMMIT;
