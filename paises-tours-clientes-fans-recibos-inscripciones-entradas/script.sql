@@ -4,15 +4,6 @@ DROP TABLE recibos_inscripcion;
 DROP TABLE fans_menores;
 DROP TABLE clientes;
 DROP TABLE tours;
-DROP TABLE paises;
-
-CREATE TABLE paises (
-    id_pais              NUMBER(3)     NOT NULL CONSTRAINT pk_pais PRIMARY KEY,
-    nombre               VARCHAR2(50)  NOT NULL,
-    continente           CHAR(2)       NOT NULL CONSTRAINT check_cont CHECK(continente IN ('AM','AF','AS','EU','OC')),
-    nacionalidad         VARCHAR2(50)  NOT NULL,
-    pertenece_ue         BOOLEAN       NOT NULL
-);
 
 CREATE TABLE tours (
     fec_inic             DATE CONSTRAINT pk_tour PRIMARY KEY,
@@ -211,32 +202,18 @@ EXCEPTION
 END;
 /
 
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (1, 'España', 'EU', 'Española', TRUE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (2, 'Venezuela', 'AM', 'Venezolana', FALSE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (3, 'Colombia', 'AM', 'Colombiana', FALSE);
-
-INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
-VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
-
-COMMIT;
-
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2025-10-01', 36, 2100.00);
+VALUES (DATE '2025-10-01', 36, 2081.00);
 
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-10-01', 3, 2500.00);
+VALUES (DATE '2026-10-01', 3, 2081.00);
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-11-29', 5000, 2854.20 );
+VALUES (DATE '2026-11-29', 5000, 2081.00 );
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-12-10', 4000, 3000.57);
+VALUES (DATE '2026-12-10', 4000, 2081.00);
 
 COMMIT;
 
