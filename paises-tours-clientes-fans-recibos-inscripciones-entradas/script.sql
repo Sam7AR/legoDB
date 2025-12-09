@@ -1,3 +1,4 @@
+--DROPS
 DROP TABLE entradas CASCADE CONSTRAINTS;
 DROP TABLE inscritos CASCADE CONSTRAINTS;
 DROP TABLE recibos_inscripcion CASCADE CONSTRAINTS;
@@ -5,7 +6,14 @@ DROP TABLE fans_menores CASCADE CONSTRAINTS;
 DROP TABLE clientes CASCADE CONSTRAINTS;
 DROP TABLE tours CASCADE CONSTRAINTS;
 DROP TABLE paises CASCADE CONSTRAINTS;
-
+DROP TABLE telefonos;
+DROP TABLE horarios;
+DROP TABLE tiendas_fisicas;
+DROP TABLE ciudades;
+DROP TABLE estados;
+DROP TABLE temas CASCADE CONSTRAINTS;
+DROP TABLE juguetes CASCADE CONSTRAINTS;
+--CREATES
 CREATE TABLE paises (
     id_pais              NUMBER(3)     NOT NULL CONSTRAINT pk_pais PRIMARY KEY,
     nombre               VARCHAR2(50)  NOT NULL,
@@ -77,6 +85,123 @@ CREATE TABLE entradas (
     CONSTRAINT pk_entradas PRIMARY KEY(id_tour,nro_reci,nro_ent)
 );
 
+CREATE TABLE estados (
+    id_pais              NUMBER(3)     NOT NULL,
+    id_estado            NUMBER(3)     NOT NULL,
+    nombre               VARCHAR2(50)  NOT NULL,
+    CONSTRAINT pk_estado PRIMARY KEY (id_pais, id_estado)
+);
+
+CREATE TABLE ciudades (
+    id_pais              NUMBER(3)     NOT NULL,
+    id_estado            NUMBER(3)     NOT NULL,
+    id_ciudad            NUMBER(5)     NOT NULL,
+    nombre               VARCHAR2(50)  NOT NULL,
+    CONSTRAINT pk_ciudad PRIMARY KEY (id_pais, id_estado, id_ciudad)
+);
+
+CREATE TABLE tiendas_fisicas (
+    id_tienda            NUMBER(5)     NOT NULL CONSTRAINT pk_tienda PRIMARY KEY,
+    nombre               VARCHAR2(100) NOT NULL,
+    direccion            VARCHAR2(200) NOT NULL,
+    id_pais              NUMBER(3)     NOT NULL,
+    id_estado            NUMBER(3)     NOT NULL,
+    id_ciudad            NUMBER(5)     NOT NULL
+);
+
+CREATE TABLE horarios (
+    id_tienda            NUMBER(5)     NOT NULL,
+    dia                  VARCHAR2(10)  NOT NULL CONSTRAINT check_horario_dia CHECK (dia IN ('LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO', 'DOMINGO')),
+    hora_apertura        VARCHAR2(5)   NOT NULL,
+    hora_cierre          VARCHAR2(5)   NOT NULL,
+    CONSTRAINT pk_horario PRIMARY KEY (id_tienda, dia)
+);
+
+CREATE TABLE telefonos (
+    id_tienda            NUMBER(5)     NOT NULL,
+    codigo_pais          VARCHAR2(5)   NOT NULL,
+    codigo_area          VARCHAR2(5)   NOT NULL,
+    numero               VARCHAR2(15)  NOT NULL,
+    CONSTRAINT pk_telefono PRIMARY KEY (id_tienda, codigo_pais, codigo_area, numero)
+);
+
+CREATE TABLE temas (
+    id NUMBER(7) CONSTRAINT pk_temas PRIMARY KEY,
+    
+    nombre VARCHAR2(50) NOT NULL
+        CONSTRAINT chk_temas_nombre CHECK (LENGTH(nombre) >= 4)
+        CONSTRAINT uq_temas_nombre UNIQUE,
+        
+    descripcion VARCHAR2(450) NOT NULL,
+
+    tipo VARCHAR2(5) NOT NULL
+        CONSTRAINT chk_temas_tipo CHECK (tipo IN ('tema', 'serie')), 
+    
+    id_tema_padre NUMBER(7)  
+);
+
+CREATE TABLE juguetes (
+    id NUMBER(7)
+        CONSTRAINT pk_juguetes PRIMARY KEY,
+    
+    nombre VARCHAR2(50) NOT NULL
+        CONSTRAINT chk_juguetes_nombre CHECK (LENGTH(nombre) >= 8)
+        CONSTRAINT uq_juguetes_nombre UNIQUE,
+    
+    rgo_edad VARCHAR2(7) NOT NULL
+        CONSTRAINT chk_juguetes_rgo_edad CHECK (rgo_edad IN ('0-2', '3-4', '5-6', '7-8', '9-11', '12+', 'adultos')),
+    
+    rgo_precio CHAR NOT NULL
+        CONSTRAINT chk_juguetes_rgo_precio CHECK (rgo_precio IN ('A', 'B', 'C', 'D')),
+    
+    cant_pzas NUMBER
+        CONSTRAINT chk_juguetes_cant_pzas CHECK (cant_pzas > 0),
+    
+    descripcion VARCHAR2(450) NOT NULL,
+    
+    instrucciones VARCHAR2(260),
+    
+    es_set BOOLEAN NOT NULL,
+    
+    id_set_padre NUMBER
+);
+
+CREATE TABLE T_J (
+    id_tema    NUMBER(7) NOT NULL,
+    id_juguete NUMBER(7) NOT NULL,
+
+    CONSTRAINT pk_t_j
+        PRIMARY KEY (id_tema, id_juguete)
+);
+
+CREATE TABLE CATALOGOS (
+    lim_compra_ol NUMBER(2) NOT NULL
+        CONSTRAINT chk_catalogos_lim_compra_ol CHECK (lim_compra_ol > 0),
+        
+    id_pais NUMBER(3) NOT NULL,
+    id_juguete NUMBER(7) NOT NULL,
+    
+    CONSTRAINT pk_catalogos 
+        PRIMARY KEY (id_pais, id_juguete)
+);
+
+CREATE TABLE prods_relacionados (
+    id_jgt_base NUMBER(7) NOT NULL,
+    id_jgt_rela NUMBER(7) NOT NULL,
+
+    CONSTRAINT pk_prods_rela
+        PRIMARY KEY (id_jgt_base, id_jgt_rela)
+);
+
+CREATE TABLE hist_precios (
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+    precio NUMBER NOT NULL,
+    id_juguete NUMBER NOT NULL,
+    CONSTRAINT pk_hist_precios PRIMARY KEY (fecha_inicio, id_juguete)
+);
+
+--ALTERS
 ALTER TABLE clientes
   ADD(
   CONSTRAINT fk_clien_nacio
@@ -121,14 +246,113 @@ ALTER TABLE entradas
   FOREIGN KEY (id_tour, nro_reci)
   REFERENCES recibos_inscripcion (id_tour, nro_reci);
 
+ALTER TABLE estados
+  ADD CONSTRAINT fk_estado_pais
+  FOREIGN KEY (id_pais)
+  REFERENCES paises (id_pais);
+
+ALTER TABLE ciudades
+  ADD CONSTRAINT fk_ciudad_estado
+  FOREIGN KEY (id_pais, id_estado)
+  REFERENCES estados (id_pais, id_estado);
+
+ALTER TABLE tiendas_fisicas
+  ADD CONSTRAINT fk_tienda_ciudad
+  FOREIGN KEY (id_pais, id_estado, id_ciudad)
+  REFERENCES ciudades (id_pais, id_estado, id_ciudad);
+
+ALTER TABLE horarios
+  ADD CONSTRAINT fk_horario_tienda
+  FOREIGN KEY (id_tienda)
+  REFERENCES tiendas_fisicas (id_tienda);
+  
+ALTER TABLE horarios
+    ADD CONSTRAINT check_horario_valido
+    CHECK (hora_apertura < hora_cierre);
+
+ALTER TABLE telefonos
+  ADD CONSTRAINT fk_telefono_tienda
+  FOREIGN KEY (id_tienda)
+  REFERENCES tiendas_fisicas (id_tienda);
+  
+ALTER TABLE telefonos
+    ADD CONSTRAINT check_telefono_min_len
+    CHECK (LENGTH(numero) >= 7);
+
+ALTER TABLE TEMAS
+ADD (
+    CONSTRAINT fk_temas_serie_padre
+    FOREIGN KEY (id_tema_padre)
+    REFERENCES TEMAS (id)
+);
+
+ALTER TABLE juguetes
+  ADD (
+    CONSTRAINT fk_juguetes_set_padre
+    FOREIGN KEY (id_set_padre)
+    REFERENCES juguetes (id)
+  );
+
+ALTER TABLE T_J
+ADD (
+    CONSTRAINT fk_tj_tema
+        FOREIGN KEY (id_tema)
+        REFERENCES TEMAS(id),
+    CONSTRAINT fk_tj_juguete
+        FOREIGN KEY (id_juguete)
+        REFERENCES JUGUETES(id)
+);
+
+ALTER TABLE CATALOGOS
+ADD (
+    CONSTRAINT fk_catalogos_pais
+        FOREIGN KEY (id_pais)
+        REFERENCES PAISES(id_pais),
+        
+    CONSTRAINT fk_catalogos_juguete
+        FOREIGN KEY (id_juguete)
+        REFERENCES JUGUETES(id)
+);
+
+ALTER TABLE prods_relacionados
+ADD (
+    CONSTRAINT fk_prods_relacionados_jgt_base
+        FOREIGN KEY (id_jgt_base)
+        REFERENCES JUGUETES(id),
+        
+    CONSTRAINT fk_prods_relacionados_jgt_rela
+        FOREIGN KEY (id_jgt_rela)
+        REFERENCES JUGUETES(id)
+);
+
+ALTER TABLE hist_precios
+ADD (
+    CONSTRAINT fk_hist_precios_id_juguete
+        FOREIGN KEY (id_juguete)
+        REFERENCES JUGUETES(id)
+);
+
 --FUNCIONES
 CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
     BEGIN
     RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
     END edad;
 /
-
+--PROCEDIMIENTOS
+CREATE OR REPLACE PROCEDURE registrar_precio_juguete (
+    p_precio   NUMBER,
+    p_id_juguete NUMBER
+)
+IS
+BEGIN
+    -- Inserta nuevo precio con SYSDATE automáticamente
+    INSERT INTO hist_precios (fecha_inicio, precio, id_juguete) VALUES (SYSDATE, p_precio, p_id_juguete);
+    
+    COMMIT; 
+END;
+/
 --TRIGGERS
+--CLIENTES
 CREATE OR REPLACE TRIGGER validar_clien
 BEFORE INSERT OR UPDATE OF fec_naci, id_pais_nacio ON clientes
 FOR EACH ROW
@@ -175,7 +399,7 @@ EXCEPTION
 END;
 /
 
-
+--FANS MENORES
 CREATE OR REPLACE TRIGGER validar_fan_menor
 BEFORE INSERT OR UPDATE OF fec_naci,id_representante,id_pais_nacio ON fans_menores
 FOR EACH ROW
@@ -235,7 +459,156 @@ EXCEPTION
         );
 END;
 /
+--TEMAS Y SERIES
+CREATE OR REPLACE TRIGGER trg_temas_validar_padre_serie
+BEFORE INSERT OR UPDATE OF tipo, id_tema_padre
+ON TEMAS
+FOR EACH ROW
+DECLARE
+    v_tipo_padre TEMAS.tipo%TYPE;
+BEGIN
+    
+    IF :NEW.tipo = 'tema' AND :NEW.id_tema_padre IS NOT NULL THEN
+        RAISE_APPLICATION_ERROR(-20101, 
+            'Los TEMAS no pueden tener id_tema_padre. Solo las SERIES.');
+    END IF;
 
+    
+    IF :NEW.tipo = 'serie' THEN
+        
+        SELECT tipo INTO v_tipo_padre
+        FROM TEMAS
+        WHERE id = :NEW.id_tema_padre;
+
+        IF v_tipo_padre <> 'tema' THEN
+            RAISE_APPLICATION_ERROR(-20102, 
+                'El id_tema_padre debe referenciar una fila con tipo = ''tema''.');
+        END IF;
+    END IF;
+END;
+/
+--JUGUETES
+CREATE OR REPLACE TRIGGER trg_relacion_set_juguetes
+BEFORE INSERT OR UPDATE OF es_set, id_set_padre
+ON JUGUETES
+FOR EACH ROW
+DECLARE
+    v_es_set_padre JUGUETES.es_set%TYPE;
+BEGIN
+    
+    IF :NEW.es_set = TRUE AND :NEW.id_set_padre IS NOT NULL THEN
+        RAISE_APPLICATION_ERROR(
+            -20104,
+            'Error: Un SET no puede tener id_set_padre (debe ser NULL)'
+        );
+    END IF;
+
+    
+    IF :NEW.es_set = FALSE AND :NEW.id_set_padre IS NOT NULL THEN
+        
+        SELECT es_set 
+        INTO v_es_set_padre 
+        FROM JUGUETES 
+        WHERE id = :NEW.id_set_padre;
+
+        
+        IF v_es_set_padre != TRUE THEN
+            RAISE_APPLICATION_ERROR(
+                -20105,
+                'Error: id_set_padre debe referenciar un SET (es_set = TRUE)'
+            );
+        END IF;
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(
+            -20106,
+            'Error: id_set_padre (' || :NEW.id_set_padre || ') no existe'
+        );
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_hist_precios_automatico
+BEFORE INSERT ON hist_precios
+FOR EACH ROW
+DECLARE
+    v_ultimo_activo DATE;
+BEGIN
+    
+    UPDATE hist_precios 
+    SET fecha_fin = SYSDATE
+    WHERE id_juguete = :NEW.id_juguete AND fecha_fin IS NULL;
+    
+    
+    CASE
+        WHEN :NEW.precio < 10 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'A'
+            WHERE id = :NEW.id_juguete;
+            
+        WHEN :NEW.precio BETWEEN 10 AND 70 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'B'
+            WHERE id = :NEW.id_juguete;
+            
+        WHEN :NEW.precio > 70 AND :NEW.precio <= 200 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'C'
+            WHERE id = :NEW.id_juguete;
+            
+        WHEN :NEW.precio > 200 THEN
+            UPDATE JUGUETES 
+            SET rgo_precio = 'D'
+            WHERE id = :NEW.id_juguete;
+            
+        ELSE
+            NULL;  
+    END CASE;
+    
+    
+END;
+/
+
+CREATE OR REPLACE TRIGGER trg_prods_relacionados_no_duplicados
+BEFORE INSERT ON prods_relacionados
+FOR EACH ROW
+DECLARE
+    v_count NUMBER;
+BEGIN
+    -- Verificar si ya existe la relación INVERSA (4,1) cuando intentas (1,4)
+    SELECT COUNT(*)
+    INTO v_count
+    FROM prods_relacionados 
+    WHERE id_jgt_base = :NEW.id_jgt_rela 
+      AND id_jgt_rela = :NEW.id_jgt_base;
+    
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20010,
+            'Error: La relación inversa (' || :NEW.id_jgt_rela || ',' || :NEW.id_jgt_base || 
+            ') ya existe. No se permiten duplicados bidireccionales.'
+        );
+    END IF;
+    
+    -- Verificar si ya existe la MISMA relación (1,4)
+    SELECT COUNT(*)
+    INTO v_count
+    FROM prods_relacionados 
+    WHERE id_jgt_base = :NEW.id_jgt_base 
+      AND id_jgt_rela = :NEW.id_jgt_rela;
+    
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20011,
+            'Error: La relación (' || :NEW.id_jgt_base || ',' || :NEW.id_jgt_rela || 
+            ') ya existe.'
+        );
+    END IF;
+END;
+/
+
+--INSERTS
+--PAISES
 INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (1, 'España', 'EU', 'Española', TRUE);
 
@@ -249,7 +622,7 @@ INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
 
 COMMIT;
-
+--TOURS
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
 VALUES (DATE '2026-10-01', 3, 2500.00);
 
@@ -261,7 +634,7 @@ VALUES (DATE '2026-12-10', 4000, 3000.57);
 
 COMMIT;
 
-
+--CLIENTES
 INSERT INTO clientes VALUES (
 101, 'Carlos', 'Gomez', 'Perez', DATE '1990-05-12', 'V1234567',
 1, 1, 'Andres', NULL, NULL
@@ -313,7 +686,7 @@ INSERT INTO clientes VALUES (
 );
 
 COMMIT;
-
+--FANS MENORES
 INSERT INTO fans_menores VALUES (
 201, 'Luis', 'Gomez', 'Perez', DATE '2007-05-12', 'FM1234',
 1, 101, 'Andres', NULL, NULL
@@ -340,3 +713,180 @@ INSERT INTO fans_menores VALUES (
 );
 
 COMMIT;
+--ESTADOS
+INSERT INTO estados (id_pais, id_estado, nombre) VALUES (1, 10, 'Comunidad de Madrid');
+INSERT INTO estados (id_pais, id_estado, nombre) VALUES (2, 20, 'Zulia');
+INSERT INTO estados (id_pais, id_estado, nombre) VALUES (3, 30, 'Cundinamarca');
+INSERT INTO estados (id_pais, id_estado, nombre) VALUES (4, 40, 'Baviera');
+COMMIT;
+--CIUDADES
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (1, 10, 100, 'Madrid');
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (2, 20, 200, 'Maracaibo');
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (3, 30, 300, 'Bogotá');
+INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (4, 40, 400, 'Múnich');
+COMMIT;
+--TIENDAS FISICAS
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (1, 'Flagship Madrid - Serrano', 'Calle Serrano 5, 28001', 1, 10, 100);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (2, 'Tienda Maracaibo - 5 de Julio', 'Av. 5 de Julio, C.C. Las Delicias', 2, 20, 200);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (3, 'Tienda Bogotá - Zona Rosa', 'Carrera 13 #85-20', 3, 30, 300);
+
+INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
+VALUES (4, 'Tienda Múnich - Karlsplatz', 'Karlsplatz 25, 80335', 4, 40, 400);
+COMMIT;
+--TELEFONOS
+INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (1, '+34', '91', '1234567');
+INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (1, '+34', '91', '1234568');
+INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (2, '+58', '261', '5551234');
+INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (3, '+57', '1', '8765432');
+INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (4, '+49', '89', '4455667');
+COMMIT;
+--HORARIOS
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (1, 'LUNES', '09:00', '19:00');
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (1, 'MARTES', '09:00', '19:00');
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (1, 'SABADO', '10:00', '15:00');
+
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (2, 'LUNES', '08:00', '18:00');
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (2, 'MARTES', '08:00', '18:00');
+
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (3, 'LUNES', '10:00', '20:00');
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (3, 'VIERNES', '10:00', '20:00');
+
+INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (4, 'LUNES', '09:30', '18:30');
+COMMIT;
+
+--TEMAS Y SERIES
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(1, 'Star Wars', 'Saga de ciencia ficción épica de George Lucas', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(2, 'Harry Potter', 'Universo mágico creado por J.K. Rowling', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(3, 'Minecraft', 'Universo cúbico de construcción y aventura', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(4, 'LEGO Friends', 'Amistad, aventuras y vida cotidiana', 'tema', NULL);
+
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(5, 'Episodio I', 'La Amenaza Fantasma - Precuela', 'serie', 1);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(6, 'Episodio II', 'El Ataque de los Clones', 'serie', 1);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(7, 'Episodio III', 'La Venganza de los Sith', 'serie', 1);
+
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(8, 'La Piedra Filosofal', 'Primer año en Hogwarts', 'serie', 2);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(9, 'La Cámara Secreta', 'Segundo año - Basilisco', 'serie', 2);
+
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(10, 'Village y Pillage', 'Aldeanos y bandidos', 'serie', 3);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(11, 'The Nether Update', 'Dimension infernal expandida', 'serie', 3);
+
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(12, 'City', 'Vida urbana moderna y vehículos', 'tema', NULL);
+
+INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
+(13, 'Technic', 'Mecanismos complejos e ingeniería', 'tema', NULL);
+
+--JUGUETES
+-- 1. SETS
+INSERT INTO juguetes VALUES (1, 'Star Wars Millennium Falcon', '9-11', 'D', 1350, 'Set avanzado con detalles de la nave espacial', 'MillenniumFalcon_75192.pdf', TRUE, NULL);
+
+INSERT INTO juguetes VALUES (2, 'Harry Potter Hogwarts Castle', '12+', 'D', 6020, 'Castillo de Hogwarts con figuras detalladas', 'HogwartsCastle_71043.pdf', TRUE, NULL);
+
+INSERT INTO juguetes VALUES (3, 'Minecraft The Nether Fortress', '7-8', 'B', 675, 'Edificio y criaturas del Nether para Minecraft', 'NetherFortress_21132.pdf', TRUE, NULL);
+
+-- 2. JUGUETES HIJOS
+INSERT INTO juguetes VALUES (4, 'X-Wing Fighter', '9-11', 'C', 727, 'Caza estelar de la Alianza Rebelde', 'XWing_75155.pdf', FALSE, 1);
+
+INSERT INTO juguetes VALUES (5, 'Dementor Figure', '12+', 'B', 3, 'Figuras de dementores para Hogwarts', 'Dementor_75969.pdf', FALSE, 2);
+
+INSERT INTO juguetes VALUES (6, 'Nether Zombie Pigman', '7-8', 'B', 5, 'Figura de zombie Pigman del Nether', 'ZombiePigman_21163.pdf', FALSE, 3);
+
+INSERT INTO juguetes VALUES (7, 'Micro-scale Creeper', '7-8', 'A', 14, 'Pequeña figura de Creeper explosivo', 'CreeperMicro_21141.pdf', FALSE, 3);
+
+-- 3. JUGUETE INDEPENDIENTE
+INSERT INTO juguetes VALUES (8, 'LEGO City Police Patrol', '5-6', 'B', 245, 'Vehículo patrulla de policía con minifiguras', 'PolicePatrol_60239.pdf', FALSE, NULL);
+
+-- Star Wars (tema 1) + sus series (5,6,7)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (1, 1);  -- Star Wars → Millennium Falcon
+INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 1);  -- Episodio I → Millennium Falcon  
+INSERT INTO T_J (id_tema, id_juguete) VALUES (5, 4);  -- Episodio I → X-Wing Fighter
+INSERT INTO T_J (id_tema, id_juguete) VALUES (6, 4);  -- Episodio II → X-Wing Fighter
+
+-- Harry Potter (tema 2) + serie (8)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (2, 2);  -- Harry Potter → Hogwarts Castle
+INSERT INTO T_J (id_tema, id_juguete) VALUES (8, 2);  -- Piedra Filosofal → Hogwarts Castle
+INSERT INTO T_J (id_tema, id_juguete) VALUES (8, 5);  -- Piedra Filosofal → Dementor Figure
+
+-- Minecraft (tema 3) + series (10,11)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (3, 3);  -- Minecraft → Nether Fortress
+INSERT INTO T_J (id_tema, id_juguete) VALUES (10, 3); -- Village y Pillage → Nether Fortress
+INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 3); -- Nether Update → Nether Fortress
+INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 6); -- Nether Update → Zombie Pigman
+INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 7); -- Nether Update → Micro Creeper
+
+-- City (tema 12)
+INSERT INTO T_J (id_tema, id_juguete) VALUES (12, 8); -- City → Police Patrol
+
+--CATALOGOS
+-- España (1): Mercado premium, límites altos
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (1, 1, 5);  -- Millennium Falcon (5 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (1, 2, 3);  -- Hogwarts Castle (3 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (1, 4, 10); -- X-Wing (10 unid.)
+
+-- Venezuela (2): Límites más restrictivos
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (2, 3, 2);  -- Nether Fortress (2 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (2, 6, 5);  -- Zombie Pigman (5 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (2, 8, 3);  -- Police Patrol (3 unid.)
+
+-- Colombia (3): Balance medio
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (3, 1, 3);  -- Millennium Falcon (3 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (3, 7, 8);  -- Micro Creeper (8 unid.)
+
+-- Alemania (4): Límites altos (mercado maduro)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (4, 2, 4);  -- Hogwarts Castle (4 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (4, 3, 3);  -- Nether Fortress (3 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (4, 5, 15); -- Dementor (15 unid.)
+
+-- PRODUCTOS RELACIONADOS
+-- Star Wars: Millennium Falcon ↔ X-Wing (mismo universo)
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (1, 4);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (4, 1);
+
+-- Harry Potter: Hogwarts Castle ↔ Dementor Figure (mismo castillo)
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (2, 5);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (5, 2);
+
+-- Minecraft Nether: Fortress ↔ Zombie Pigman ↔ Micro Creeper
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (3, 6);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (6, 3);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (3, 7);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (7, 3);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (6, 7);
+INSERT INTO prods_relacionados (id_jgt_base, id_jgt_rela) VALUES (7, 6);
+
+-- HISTORICOS DE PRECIOS DE JUGUETES (también se puede usar el procedimiento registrar_precio_juguete)
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 299.99, 1);  -- Millennium Falcon
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 449.99, 2);  -- Hogwarts Castle  
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 89.99, 3);   -- Nether Fortress
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 129.99, 4);  -- X-Wing Fighter
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 19.99, 5);   -- Dementor Figure
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 9.99, 6);    -- Zombie Pigman
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 4.99, 7);    -- Micro Creeper
+INSERT INTO hist_precios (fecha_inicio,  precio, id_juguete) VALUES (SYSDATE, 29.99, 8);   -- Police Patrol
