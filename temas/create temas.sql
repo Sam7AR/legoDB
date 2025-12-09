@@ -88,6 +88,3 @@ INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES
 -- 5. MÁS TEMAS para diversidad
 INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
 (12, 'City', 'Vida urbana moderna y vehículos', 'tema', NULL);
-
-INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
-(13, 'Technic', 'Mecanismos complejos e ingeniería', 'tema', NULL);
