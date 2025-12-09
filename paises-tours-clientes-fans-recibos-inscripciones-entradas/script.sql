@@ -886,17 +886,17 @@ VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
 COMMIT;
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2025-10-01', 36, 2100.00);
+VALUES (DATE '2025-10-01', 36, 2081.00);
 
 --TOURS
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-10-01', 3, 2500.00);
+VALUES (DATE '2026-10-01', 3, 2081.00);
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-11-29', 5000, 2854.20 );
+VALUES (DATE '2026-11-29', 5000, 2081.00 );
 
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
-VALUES (DATE '2026-12-10', 4000, 3000.57);
+VALUES (DATE '2026-12-10', 4000, 2081.00);
 
 COMMIT;
 
