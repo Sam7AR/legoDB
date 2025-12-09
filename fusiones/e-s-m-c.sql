@@ -455,6 +455,26 @@ ALTER TABLE dets_online
   REFERENCES catalogos (id_pais, id_juguete));
   
 --FUNCIONES:
+
+CREATE OR REPLACE FUNCTION num_a_dia (
+    p_dia IN horarios.dia%TYPE
+) RETURN VARCHAR2 IS
+    v_dia_texto VARCHAR2(10);
+BEGIN
+    CASE p_dia
+        WHEN 1 THEN v_dia_texto := 'Lunes';
+        WHEN 2 THEN v_dia_texto := 'Martes';
+        WHEN 3 THEN v_dia_texto := 'Miércoles';
+        WHEN 4 THEN v_dia_texto := 'Jueves';
+        WHEN 5 THEN v_dia_texto := 'Viernes';
+        WHEN 6 THEN v_dia_texto := 'Sábado';
+        WHEN 7 THEN v_dia_texto := 'Domingo';
+        ELSE v_dia_texto := 'Desconocido';
+    END CASE;
+    RETURN v_dia_texto;
+END num_a_dia;
+/
+
 CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
     BEGIN
     RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
@@ -1461,6 +1481,7 @@ VALUES (7, 'Canadá', 'AM', 'Canadiense', FALSE);
 -- Estados
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (1, 1, 'País Vasco');
+
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (1, 2, 'Comunidad de Madrid');
 
@@ -1469,11 +1490,13 @@ VALUES (5, 1, 'Escocia');
 
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (6, 1, 'Brașov');
+
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (6, 2, 'Cluj');
 
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (7, 1, 'Quebec');
+
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (7, 2, 'Ontario');
 
@@ -1933,3 +1956,23 @@ SELECT
 FROM hist_precios h
 JOIN juguetes j ON h.id_juguete = j.id
 CROSS JOIN paises p; 
+
+
+CREATE OR REPLACE VIEW v_horarios_tiendas AS
+SELECT
+    t.id_tienda,
+    t.nombre AS nombre_tienda,
+    num_a_dia(h.dia) AS dia_semana,
+    TO_CHAR(h.hora_aper, 'HH24:MI') AS hora_apertura,
+    TO_CHAR(h.hora_cier, 'HH24:MI') AS hora_cierre
+FROM
+    tiendas_fisicas t
+JOIN
+    horarios h ON t.id_tienda = h.id_tienda
+ORDER BY
+    t.id_tienda, h.dia;
+/
+
+SELECT *
+FROM v_horarios_tiendas
+WHERE id_tienda = 7;
