@@ -48,7 +48,7 @@ CREATE TABLE facturas_online (
     nro_factura         NUMBER(7)       NOT NULL CONSTRAINT pk_fact_on PRIMARY KEY,
     fecha_emision       DATE            NOT NULL,
     costo_total         NUMBER(8,2),
-    puntos_leal         NUMBER(3)       NOT NULL,
+    puntos_leal         NUMBER(3),
     id_cliente          NUMBER(7)       NOT NULL,
     venta_gratis        BOOLEAN
 );
@@ -162,74 +162,118 @@ END;
 -- EXEC actualizar_costo_total_fact_tienda(id_tienda, nro_factura);
   
   
--- Este procedimiento calcula el costo total para las facturas de ventas online
-CREATE OR REPLACE PROCEDURE actualizar_costo_total_fact_online (
-    p_id_factura_online IN NUMBER
+-- Este procedimiento calcula el costo total y los puntos de lealtad para las facturas de ventas online
+CREATE OR REPLACE PROCEDURE actualizar_factura_online (
+    p_nro_factura IN NUMBER
 )
 IS
-    v_costo_base      NUMBER := 0;
-    v_recargo         NUMBER := 0;
-    v_costo_final     NUMBER := 0;
+    v_costo_base          NUMBER := 0;
+    v_recargo_porcentaje  NUMBER := 0;
+    v_recargo_monto       NUMBER := 0;
+    v_costo_final         NUMBER := 0;
     
-    v_pertenece_ue    BOOLEAN;
+    v_id_cliente          NUMBER(7);
+    v_puntos_acumulados_ant NUMBER := 0; -- Suma de puntos de facturas anteriores
+    v_puntos_ganados_esta_factura NUMBER := 0;
     
-    e_factura_no_encontrada EXCEPTION;
-    PRAGMA EXCEPTION_INIT(e_factura_no_encontrada, -20001);
+    v_es_gratis_compra    BOOLEAN := FALSE; 
+    
+    v_pertenece_ue        BOOLEAN;
+    
+    e_no_data_factura EXCEPTION;
+    PRAGMA EXCEPTION_INIT(e_no_data_factura, -20001);
     
 BEGIN
-    SELECT SUM(do.cantidad * hp.precio)
-    INTO v_costo_base
+    SELECT fo.id_cliente, 
+           SUM(do.cantidad * hp.precio),
+           p.pertenece_ue
+    INTO v_id_cliente, v_costo_base, v_pertenece_ue
     FROM facturas_online fo
-    JOIN dets_online do ON fo.id_factura_online = do.id_factura_online
+    JOIN dets_online do ON fo.nro_factura = do.nro_factura
     JOIN catalogos c ON do.id_catalogo = c.id_catalogo
     JOIN juguetes j ON c.id_juguete = j.id_juguete
     JOIN hist_precios hp ON j.id_juguete = hp.id_juguete
-    WHERE fo.id_factura_online = p_id_factura_online
-    AND hp.fec_vigencia_fin IS NULL; -- Asume que el precio actual es el que tiene fecha de fin nula
+    JOIN clientes cl ON fo.id_cliente = cl.id_lego
+    JOIN paises p ON cl.id_pais_resi = p.id_pais
+    WHERE fo.nro_factura = p_nro_factura
+    AND hp.fec_vigencia_fin IS NULL 
+    GROUP BY fo.id_cliente, p.pertenece_ue;
 
     IF v_costo_base IS NULL THEN
-
-        SELECT 1 INTO v_costo_base 
-        FROM facturas_online
-        WHERE id_factura_online = p_id_factura_online;
-        
-        v_costo_base := 0; 
+       v_costo_base := 0;
     END IF;
 
-    SELECT p.pertenece_ue
-    INTO v_pertenece_ue
-    FROM facturas_online fo
-    JOIN clientes cl ON fo.id_cliente_lego = cl.id_lego
-    JOIN paises p ON cl.id_pais_resi = p.id_pais
-    WHERE fo.id_factura_online = p_id_factura_online;
-
+    -- Determinar Recargo
     IF v_pertenece_ue = TRUE THEN
-        v_recargo := 0.05;
+        v_recargo_porcentaje := 0.05; -- UE: 5%
     ELSE
-        v_recargo := 0.15;
+        v_recargo_porcentaje := 0.15; -- No UE: 15%
+    END IF;
+    
+    v_recargo_monto := v_costo_base * v_recargo_porcentaje;
+
+    -- Calcular Puntos de Lealtad Acumulados ANTERIORES
+    -- Suma los puntos_leal de TODAS las facturas anteriores del cliente que NO fueron gratuitas.
+    SELECT NVL(SUM(puntos_leal), 0)
+    INTO v_puntos_acumulados_ant
+    FROM facturas_online
+    WHERE id_cliente = v_id_cliente
+    AND nro_factura != p_nro_factura -- Excluye la factura actual si ya existe
+    AND venta_gratis = FALSE; -- Solo considera facturas pagadas para acumulación
+    
+    -- Determinar si la compra actual es gratuita 
+    -- Consulta si ya existe una factura gratuita posterior a la que hizo que el cliente llegara a 500
+    IF v_puntos_acumulados_ant >= 500 THEN
+        v_es_gratis_compra := TRUE;
+        v_costo_final := v_recargo_monto; -- Solo paga el recargo
+    ELSE
+        v_es_gratis_compra := FALSE;
+        v_costo_final := v_costo_base * (1 + v_recargo_porcentaje);
+    END IF;
+    
+    -- Lógica de puntos ganados en esta factura
+    
+    IF v_es_gratis_compra = TRUE THEN
+        -- Si fue la compra gratuita, no acumula puntos en esta transacción.
+        v_puntos_ganados_esta_factura := 0; 
+    ELSE
+        -- Si fue una compra normal, acumula puntos según el costo base (sin recargo).
+        IF v_costo_base < 10 THEN
+            v_puntos_ganados_esta_factura := 5;
+        ELSIF v_costo_base >= 10 AND v_costo_base < 70 THEN
+            v_puntos_ganados_esta_factura := 20;
+        ELSIF v_costo_base >= 70 AND v_costo_base < 200 THEN
+            v_puntos_ganados_esta_factura := 50;
+        ELSIF v_costo_base >= 200 THEN
+            v_puntos_ganados_esta_factura := 200;
+        ELSE
+            v_puntos_ganados_esta_factura := 0;
+        END IF;
     END IF;
 
-    -- Calcular el Costo Total Final
-    v_costo_final := v_costo_base * (1 + v_recargo);
-
-    -- Actualizar la tabla facturas_online con el costo final
+    -- Actualización de la Factura
+    -- Esta factura registra el costo final, si fue gratuita, y cuántos puntos se ganaron.
     UPDATE facturas_online
-    SET costo_total = v_costo_final
-    WHERE id_factura_online = p_id_factura_online;
+    SET 
+        costo_total = v_costo_final,
+        puntos_leal = v_puntos_ganados_esta_factura, -- Los puntos ganados en esta transacción
+        venta_gratis = v_es_gratis_compra
+    WHERE nro_factura = p_nro_factura;
     
     COMMIT;
     
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
-        RAISE_APPLICATION_ERROR(-20001, 'Error: La Factura Online con ID ' || p_id_factura_online || ' no existe o faltan datos de cliente/país.');
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20001, 'Error: Factura Online ' || p_nro_factura || ' no existe, no tiene detalles o faltan datos de cliente/país.');
     WHEN OTHERS THEN
         ROLLBACK;
-        RAISE_APPLICATION_ERROR(-20002, 'Error al procesar la factura: ' || SQLERRM);
-END PR_CALCULAR_COSTO_FACTURA_ONLINE;
-/  
+        RAISE_APPLICATION_ERROR(-20002, 'Error inesperado al procesar la factura: ' || SQLERRM);
+END PR_CALCULAR_FACTURA_ONLINE;
+/
 -- Se usa el siguiente comando para ejecutar el procedimiento luego de insertar una fila de facturas_online (costo_total como NULL) y sus filas de dets_online necesarios
 -- ejemplo de id_factura_online(1001)
--- EXEC actualizar_costo_total_fact_online(p_id_factura_online => 1001);
+-- EXEC actualizar_factura_online(1001);
 
   
   --TRIGGERS
@@ -300,4 +344,3 @@ EXCEPTION
         );
 END;
 /
-
