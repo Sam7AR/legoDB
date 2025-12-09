@@ -530,6 +530,40 @@ BEGIN
 END;
 /
 
+--VIEWS
+
+CREATE OR REPLACE VIEW v_precios_por_pais AS
+SELECT 
+    p.id_pais,
+    p.nombre     AS pais,
+    j.nombre     AS juguete,
+    h.fecha_inicio,
+    h.fecha_fin,
+    
+    CASE 
+        WHEN h.fecha_fin IS NULL THEN 'ACTIVO'
+        ELSE 'FINALIZADO'
+    END AS estado,
+    
+    CASE 
+        WHEN p.pertenece_ue THEN 'EUR'
+        ELSE 'USD' 
+    END AS moneda,
+   
+    CASE 
+        WHEN p.pertenece_ue THEN h.precio            -- Precio original
+        ELSE ROUND(h.precio * 1.05, 2)               -- Conversión a Dólar (ej. 1.05)
+    END AS precio_final
+FROM hist_precios h
+JOIN juguetes j ON h.id_juguete = j.id
+CROSS JOIN paises p; 
+
+/*
+SELECT * FROM v_precios_por_pais 
+WHERE id_pais = 1 -- España
+ORDER BY juguete, fecha_inicio DESC;
+*/
+
 --INSERTS
 -- 1. TEMAS PRINCIPALES (sin padre)
 INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
