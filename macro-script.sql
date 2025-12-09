@@ -175,6 +175,16 @@ CREATE TABLE T_J (
         PRIMARY KEY (id_tema, id_juguete)
 );
 
+CREATE TABLE CATALOGOS (
+    lim_compra_ol NUMBER(2) NOT NULL
+        CONSTRAINT chk_catalogos_lim_compra_ol CHECK (lim_compra_ol > 0),
+        
+    id_pais NUMBER(3) NOT NULL,
+    id_juguete NUMBER(7) NOT NULL,
+    
+    CONSTRAINT pk_catalogos 
+        PRIMARY KEY (id_pais, id_juguete)
+);
 
 --ALTERS
 ALTER TABLE clientes
@@ -277,6 +287,17 @@ ADD (
         FOREIGN KEY (id_juguete)
         REFERENCES JUGUETES(id)
 );
+
+ALTER TABLE CATALOGOS
+ADD (
+    CONSTRAINT fk_catalogos_pais
+        FOREIGN KEY (id_pais)
+        REFERENCES PAISES(id_pais),
+        
+    CONSTRAINT fk_catalogos_juguete
+        FOREIGN KEY (id_juguete)
+        REFERENCES JUGUETES(id)
+);
 --FUNCIONES
 CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
     BEGIN
@@ -285,6 +306,7 @@ CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
 /
 
 --TRIGGERS
+--CLIENTES
 CREATE OR REPLACE TRIGGER validar_clien
 BEFORE INSERT OR UPDATE OF fec_naci, id_pais_nacio ON clientes
 FOR EACH ROW
@@ -331,7 +353,7 @@ EXCEPTION
 END;
 /
 
-
+--FANS MENORES
 CREATE OR REPLACE TRIGGER validar_fan_menor
 BEFORE INSERT OR UPDATE OF fec_naci,id_representante,id_pais_nacio ON fans_menores
 FOR EACH ROW
@@ -391,7 +413,7 @@ EXCEPTION
         );
 END;
 /
-
+--TEMAS Y SERIES
 CREATE OR REPLACE TRIGGER trg_temas_validar_padre_serie
 BEFORE INSERT OR UPDATE OF tipo, id_tema_padre
 ON TEMAS
@@ -419,7 +441,7 @@ BEGIN
     END IF;
 END;
 /
-
+--JUGUETES
 CREATE OR REPLACE TRIGGER trg_relacion_set_juguetes
 BEFORE INSERT OR UPDATE OF es_set, id_set_padre
 ON JUGUETES
@@ -460,7 +482,7 @@ EXCEPTION
 END;
 /
 --INSERTS
-
+--PAISES
 INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (1, 'España', 'EU', 'Española', TRUE);
 
@@ -474,7 +496,7 @@ INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
 VALUES (4, 'Alemania', 'EU', 'Alemana', TRUE);
 
 COMMIT;
-
+--TOURS
 INSERT INTO tours (fec_inic, cupos_tot, precio_ent)
 VALUES (DATE '2026-10-01', 3, 2500.00);
 
@@ -486,7 +508,7 @@ VALUES (DATE '2026-12-10', 4000, 3000.57);
 
 COMMIT;
 
-
+--CLIENTES
 INSERT INTO clientes VALUES (
 101, 'Carlos', 'Gomez', 'Perez', DATE '1990-05-12', 'V1234567',
 1, 1, 'Andres', NULL, NULL
@@ -538,7 +560,7 @@ INSERT INTO clientes VALUES (
 );
 
 COMMIT;
-
+--FANS MENORES
 INSERT INTO fans_menores VALUES (
 201, 'Luis', 'Gomez', 'Perez', DATE '2007-05-12', 'FM1234',
 1, 101, 'Andres', NULL, NULL
@@ -565,19 +587,19 @@ INSERT INTO fans_menores VALUES (
 );
 
 COMMIT;
-
+--ESTADOS
 INSERT INTO estados (id_pais, id_estado, nombre) VALUES (1, 10, 'Comunidad de Madrid');
 INSERT INTO estados (id_pais, id_estado, nombre) VALUES (2, 20, 'Zulia');
 INSERT INTO estados (id_pais, id_estado, nombre) VALUES (3, 30, 'Cundinamarca');
 INSERT INTO estados (id_pais, id_estado, nombre) VALUES (4, 40, 'Baviera');
 COMMIT;
-
+--CIUDADES
 INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (1, 10, 100, 'Madrid');
 INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (2, 20, 200, 'Maracaibo');
 INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (3, 30, 300, 'Bogotá');
 INSERT INTO ciudades (id_pais, id_estado, id_ciudad, nombre) VALUES (4, 40, 400, 'Múnich');
 COMMIT;
-
+--TIENDAS FISICAS
 INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
 VALUES (1, 'Flagship Madrid - Serrano', 'Calle Serrano 5, 28001', 1, 10, 100);
 
@@ -590,14 +612,14 @@ VALUES (3, 'Tienda Bogotá - Zona Rosa', 'Carrera 13 #85-20', 3, 30, 300);
 INSERT INTO tiendas_fisicas (id_tienda, nombre, direccion, id_pais, id_estado, id_ciudad)
 VALUES (4, 'Tienda Múnich - Karlsplatz', 'Karlsplatz 25, 80335', 4, 40, 400);
 COMMIT;
-
+--TELEFONOS
 INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (1, '+34', '91', '1234567');
 INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (1, '+34', '91', '1234568');
 INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (2, '+58', '261', '5551234');
 INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (3, '+57', '1', '8765432');
 INSERT INTO telefonos (id_tienda, codigo_pais, codigo_area, numero) VALUES (4, '+49', '89', '4455667');
 COMMIT;
-
+--HORARIOS
 INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (1, 'LUNES', '09:00', '19:00');
 INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (1, 'MARTES', '09:00', '19:00');
 INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (1, 'SABADO', '10:00', '15:00');
@@ -611,7 +633,7 @@ INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (3, 'VI
 INSERT INTO horarios (id_tienda, dia, hora_apertura, hora_cierre) VALUES (4, 'LUNES', '09:30', '18:30');
 COMMIT;
 
-
+--TEMAS Y SERIES
 INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
 (1, 'Star Wars', 'Saga de ciencia ficción épica de George Lucas', 'tema', NULL);
 
@@ -655,6 +677,7 @@ INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES
 INSERT INTO TEMAS (id, nombre, descripcion, tipo, id_tema_padre) VALUES 
 (13, 'Technic', 'Mecanismos complejos e ingeniería', 'tema', NULL);
 
+--JUGUETES
 -- 1. SETS
 INSERT INTO juguetes VALUES (1, 'Star Wars Millennium Falcon', '9-11', 'D', 1350, 'Set avanzado con detalles de la nave espacial', 'MillenniumFalcon_75192.pdf', 'S', NULL);
 
@@ -694,3 +717,23 @@ INSERT INTO T_J (id_tema, id_juguete) VALUES (11, 7); -- Nether Update → Micro
 
 -- City (tema 12)
 INSERT INTO T_J (id_tema, id_juguete) VALUES (12, 8); -- City → Police Patrol
+
+--CATALOGOS
+-- España (1): Mercado premium, límites altos
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (1, 1, 5);  -- Millennium Falcon (5 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (1, 2, 3);  -- Hogwarts Castle (3 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (1, 4, 10); -- X-Wing (10 unid.)
+
+-- Venezuela (2): Límites más restrictivos
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (2, 3, 2);  -- Nether Fortress (2 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (2, 6, 5);  -- Zombie Pigman (5 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (2, 8, 3);  -- Police Patrol (3 unid.)
+
+-- Colombia (3): Balance medio
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (3, 1, 3);  -- Millennium Falcon (3 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (3, 7, 8);  -- Micro Creeper (8 unid.)
+
+-- Alemania (4): Límites altos (mercado maduro)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (4, 2, 4);  -- Hogwarts Castle (4 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (4, 3, 3);  -- Nether Fortress (3 unid.)
+INSERT INTO CATALOGOS (id_pais, id_juguete, lim_compra_ol) VALUES (4, 5, 15); -- Dementor (15 unid.)
