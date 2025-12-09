@@ -569,6 +569,44 @@ BEGIN
 END;
 /
 
+CREATE OR REPLACE TRIGGER trg_prods_relacionados_no_duplicados
+BEFORE INSERT ON prods_relacionados
+FOR EACH ROW
+DECLARE
+    v_count NUMBER;
+BEGIN
+    -- Verificar si ya existe la relación INVERSA (4,1) cuando intentas (1,4)
+    SELECT COUNT(*)
+    INTO v_count
+    FROM prods_relacionados 
+    WHERE id_jgt_base = :NEW.id_jgt_rela 
+      AND id_jgt_rela = :NEW.id_jgt_base;
+    
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20010,
+            'Error: La relación inversa (' || :NEW.id_jgt_rela || ',' || :NEW.id_jgt_base || 
+            ') ya existe. No se permiten duplicados bidireccionales.'
+        );
+    END IF;
+    
+    -- Verificar si ya existe la MISMA relación (1,4)
+    SELECT COUNT(*)
+    INTO v_count
+    FROM prods_relacionados 
+    WHERE id_jgt_base = :NEW.id_jgt_base 
+      AND id_jgt_rela = :NEW.id_jgt_rela;
+    
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20011,
+            'Error: La relación (' || :NEW.id_jgt_base || ',' || :NEW.id_jgt_rela || 
+            ') ya existe.'
+        );
+    END IF;
+END;
+/
+
 --INSERTS
 --PAISES
 INSERT INTO paises (id_pais, nombre, continente, nacionalidad, pertenece_ue)
