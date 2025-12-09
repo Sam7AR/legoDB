@@ -1520,8 +1520,8 @@ CREATE OR REPLACE PROCEDURE registrar_factura_online (
     v_puntos_leal   facturas_online.puntos_leal%TYPE;
 
 
-    v_precio_unit    historico_precios.precio%TYPE;
-    v_lim_comp_on    catalogos.lim_comp_on%TYPE;
+    v_precio_unit    hist_precios.precio%TYPE;
+    v_lim_comp_on    catalogos.lim_compra_ol%TYPE;
 
     v_id_pais_cat    catalogos.id_pais%TYPE;
     v_id_juguete_cat catalogos.id_juguete%TYPE;
@@ -1583,17 +1583,17 @@ BEGIN
         BEGIN
             SELECT c.id_pais,
                    c.id_juguete,
-                   h.precio_unit,
-                   c.lim_comp_on
+                   h.precio,
+                   c.lim_compra_ol
               INTO v_id_pais_cat,
                    v_id_juguete_cat,
                    v_precio_unit,
                    v_lim_comp_on
-              FROM catalogos c, juguetes j, historico_precios h
+              FROM catalogos c, juguetes j, hist_precios h
              WHERE c.id_juguete = p_detalles(i).id_juguete
                AND c.id_pais    = v_id_pais_resi
-               AND j.id_jgt     = h.id_jgt
-               AND h.fec_fin IS NULL;
+               AND j.id     = h.id_juguete
+               AND h.fecha_fin IS NULL;
         EXCEPTION
             WHEN NO_DATA_FOUND THEN
                 RAISE_APPLICATION_ERROR(
