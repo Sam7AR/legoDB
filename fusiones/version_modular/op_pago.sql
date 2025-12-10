@@ -13,7 +13,6 @@ COLUMN "Importe Total" FORMAT A15
 COLUMN "Estado del Pago" FORMAT A15
 COLUMN "Fecha de Emisión" FORMAT A20
 
--- Consulta unificada
 SELECT * FROM v_recibos_detallados;
 
 PROMPT
@@ -38,6 +37,23 @@ EXCEPTION
         ROLLBACK;
 END;
 /
+
+PROMPT
+PROMPT === ENTRADAS GENERADAS ===
+
+COLUMN fecha_tour HEADING 'Fecha Tour' FORMAT A15
+COLUMN recibo HEADING 'Recibo' FORMAT A10
+COLUMN nro_entrada HEADING 'Nro. Entrada' FORMAT 9999
+COLUMN tipo HEADING 'Tipo Asistente' FORMAT A15
+
+SELECT TO_CHAR(id_tour, 'DD/MM/YYYY') AS fecha_tour,
+       '#' || LPAD(nro_reci, 4, '0') AS recibo,
+       nro_ent AS nro_entrada,
+       UPPER(tipo_asis) AS tipo
+FROM entradas 
+WHERE id_tour = TO_DATE('&v_pago_fecha_str', 'DD/MM/YY') 
+  AND nro_reci = &v_pago_nro
+ORDER BY nro_ent;
 
 PROMPT
 PROMPT Presione ENTER para volver al menú...
