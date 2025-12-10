@@ -1,3 +1,23 @@
+-------------------------------------------------------------------------------
+-- EJEMPLO DE CREACIÓN DEL USUARIO PARA EL PROYECTO LEGO 
+-------------------------------------------------------------------------------
+
+-- CREATE USER lego IDENTIFIED BY lego123
+
+-------------------------------------------------------------------------------
+-- PRIVILEGIOS BÁSICOS PARA PERMITIR CREAR TABLAS, TIPOS, TRIGGERS, PROCEDURES
+-------------------------------------------------------------------------------
+
+-- GRANT CREATE SESSION TO lego;
+-- GRANT CREATE TABLE TO lego;
+-- GRANT CREATE VIEW TO lego;
+-- GRANT CREATE SEQUENCE TO lego;
+-- GRANT CREATE TRIGGER TO lego;
+-- GRANT CREATE PROCEDURE TO lego;
+-- GRANT CREATE TYPE TO lego;
+
+
+
 --RUTINA PARA ELIMINAR TODOS LOS OBJETOS EN EL ESQUEMA
 BEGIN
 
@@ -455,26 +475,6 @@ ALTER TABLE dets_online
   REFERENCES catalogos (id_pais, id_juguete));
   
 --FUNCIONES:
-
-CREATE OR REPLACE FUNCTION num_a_dia (
-    p_dia IN horarios.dia%TYPE
-) RETURN VARCHAR2 IS
-    v_dia_texto VARCHAR2(10);
-BEGIN
-    CASE p_dia
-        WHEN 1 THEN v_dia_texto := 'Lunes';
-        WHEN 2 THEN v_dia_texto := 'Martes';
-        WHEN 3 THEN v_dia_texto := 'Miércoles';
-        WHEN 4 THEN v_dia_texto := 'Jueves';
-        WHEN 5 THEN v_dia_texto := 'Viernes';
-        WHEN 6 THEN v_dia_texto := 'Sábado';
-        WHEN 7 THEN v_dia_texto := 'Domingo';
-        ELSE v_dia_texto := 'Desconocido';
-    END CASE;
-    RETURN v_dia_texto;
-END num_a_dia;
-/
-
 CREATE OR REPLACE FUNCTION edad(fec_naci DATE) RETURN NUMBER IS
     BEGIN
     RETURN TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci) / 12);
@@ -559,7 +559,7 @@ DECLARE
 BEGIN
     
     IF :NEW.tipo = 'tema' AND :NEW.id_tema_padre IS NOT NULL THEN
-        RAISE_APPLICATION_ERROR(-20101, 
+        RAISE_APPLICATION_ERROR(-20001, 
             'Los TEMAS no pueden tener id_tema_padre. Solo las SERIES.');
     END IF;
 
@@ -571,7 +571,7 @@ BEGIN
         WHERE id = :NEW.id_tema_padre;
 
         IF v_tipo_padre <> 'tema' THEN
-            RAISE_APPLICATION_ERROR(-20102, 
+            RAISE_APPLICATION_ERROR(-20002, 
                 'El id_tema_padre debe referenciar una fila con tipo = ''tema''.');
         END IF;
     END IF;
@@ -588,7 +588,7 @@ BEGIN
     
     IF :NEW.es_set = TRUE AND :NEW.id_set_padre IS NOT NULL THEN
         RAISE_APPLICATION_ERROR(
-            -20104,
+            -20003,
             'Error: Un SET no puede tener id_set_padre (debe ser NULL)'
         );
     END IF;
@@ -604,7 +604,7 @@ BEGIN
         
         IF v_es_set_padre != TRUE THEN
             RAISE_APPLICATION_ERROR(
-                -20105,
+                -20004,
                 'Error: id_set_padre debe referenciar un SET (es_set = TRUE)'
             );
         END IF;
@@ -612,7 +612,7 @@ BEGIN
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         RAISE_APPLICATION_ERROR(
-            -20106,
+            -20005,
             'Error: id_set_padre (' || :NEW.id_set_padre || ') no existe'
         );
 END;
@@ -674,7 +674,7 @@ BEGIN
     
     IF v_count > 0 THEN
         RAISE_APPLICATION_ERROR(
-            -20010,
+            -20006,
             'Error: La relación inversa (' || :NEW.id_jgt_rela || ',' || :NEW.id_jgt_base || 
             ') ya existe. No se permiten duplicados bidireccionales.'
         );
@@ -689,7 +689,7 @@ BEGIN
     
     IF v_count > 0 THEN
         RAISE_APPLICATION_ERROR(
-            -20011,
+            -20007,
             'Error: La relación (' || :NEW.id_jgt_base || ',' || :NEW.id_jgt_rela || 
             ') ya existe.'
         );
@@ -712,7 +712,7 @@ BEGIN
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             RAISE_APPLICATION_ERROR(
-                -20000,
+                -20008,
                 'La tienda con id = ' || :NEW.id_tienda || ' no existe.'
             );
     END;
@@ -725,7 +725,7 @@ BEGIN
            AND c.id_juguete = :NEW.id_juguete;
     IF v_existe = 0 THEN
             RAISE_APPLICATION_ERROR(
-                -20001,
+                -20009,
                 'El juguete id = ' || :NEW.id_juguete ||
                 ' no está en el catálogo del país de la tienda (id_pais = ' || v_id_pais || ').'
             );
@@ -746,7 +746,7 @@ BEGIN
 
     IF v_edad < 21 THEN
         RAISE_APPLICATION_ERROR(
-            -20001,
+            -20010,
             'El cliente debe tener al menos 21 años.'
         );
     END IF;
@@ -764,21 +764,21 @@ BEGIN
 
     IF v_edad < 12 THEN
         RAISE_APPLICATION_ERROR(
-            -20008,
+            -20011,
             'El fan debe tener al menos 12 años.'
         );
     END IF;
 
     IF v_edad >= 21 THEN
         RAISE_APPLICATION_ERROR(
-            -20009,
+            -20012,
             'El fan debe ser menor de 21 años.'
         );
     END IF;
 
     IF v_edad < 18 AND :NEW.id_representante IS NULL THEN
         RAISE_APPLICATION_ERROR(
-            -20010,
+            -20013,
             'Los fans menores de 18 años deben tener representante.'
         );
     END IF;
@@ -791,7 +791,7 @@ BEGIN
     IF NOT v_pertenece_ue THEN
         IF :NEW.pasaporte IS NULL OR :NEW.fec_ven_pas IS NULL THEN
             RAISE_APPLICATION_ERROR(
-                -20011,
+                -20014,
                 'Fans no nacidos en la UE deben especificar pasaporte y fecha de vencimiento.'
             );
         END IF;
@@ -807,7 +807,7 @@ BEGIN
 EXCEPTION
     WHEN NO_DATA_FOUND THEN
         RAISE_APPLICATION_ERROR(
-            -20013,
+            -20015,
             'País no encontrado.'
         );
 END;
@@ -831,212 +831,135 @@ CREATE OR REPLACE PROCEDURE registrar_inscripcion_tour (
     p_clientes  IN id_tab,
     p_fans      IN id_tab
 ) IS
-    v_cupos_tot        tours.cupos_tot%TYPE;
-    v_precio_ent       tours.precio_ent%TYPE;
-
+    v_cupos_tot         tours.cupos_tot%TYPE;
+    v_precio_ent        tours.precio_ent%TYPE;
     v_inscritos_actuales  NUMBER;
     v_nuevos              NUMBER;
-
-    v_nro_reci        recibos_inscripcion.nro_reci%TYPE;
-    v_costo_total     recibos_inscripcion.costo_tot%TYPE;
-
-    v_pasaporte       VARCHAR2(20);
-    v_fec_ven         DATE;
-    v_pertenece_ue    BOOLEAN;
-
-    v_id_rep          fans_menores.id_representante%TYPE;
-    v_edad_fan        NUMBER;
-
-    v_id_ins          inscritos.id_ins%TYPE := 0;
-
-    v_rep_en_lista  BOOLEAN;
+    v_nro_reci          recibos_inscripcion.nro_reci%TYPE;
+    v_costo_total       recibos_inscripcion.costo_tot%TYPE;
+    v_pasaporte         VARCHAR2(20);
+    v_fec_ven           DATE;
+    v_pertenece_ue      BOOLEAN;
+    v_id_rep            fans_menores.id_representante%TYPE;
+    v_edad_fan          NUMBER;
+    v_id_ins            inscritos.id_ins%TYPE := 0;
+    v_rep_en_lista      BOOLEAN;
+    
+    v_nombre_asistente  VARCHAR2(100);
+    v_tipo_asistente    VARCHAR2(20);
+    
+    v_existe_inscripcion NUMBER;
 BEGIN
-
     BEGIN
-        SELECT t.cupos_tot, t.precio_ent
-          INTO v_cupos_tot, v_precio_ent
-          FROM tours t
-         WHERE t.fec_inic = p_fec_tour;
+        SELECT t.cupos_tot, t.precio_ent INTO v_cupos_tot, v_precio_ent
+          FROM tours t WHERE t.fec_inic = p_fec_tour;
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            RAISE_APPLICATION_ERROR(
-                -20021,
-                'El tour indicado no existe.'
-            );
+        WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20016, 'El tour indicado no existe.');
     END;
 
     IF TRUNC(SYSDATE) >= TRUNC(p_fec_tour) THEN
-        RAISE_APPLICATION_ERROR(
-            -20022,
-            'No se puede inscribir: la fecha actual es igual o posterior a la fecha del tour.'
-        );
+        RAISE_APPLICATION_ERROR(-20017, 'No se puede inscribir: la fecha actual es igual o posterior a la fecha del tour.');
     END IF;
 
-    SELECT COUNT(*)
-      INTO v_inscritos_actuales
-      FROM inscritos
-     WHERE id_tour = p_fec_tour;
+    SELECT COUNT(*) INTO v_inscritos_actuales FROM inscritos WHERE id_tour = p_fec_tour;
 
-    v_nuevos :=
-        NVL(p_clientes.COUNT, 0) +
-        NVL(p_fans.COUNT, 0);
+    v_nuevos := CASE WHEN p_clientes IS NOT NULL THEN p_clientes.COUNT ELSE 0 END +
+                CASE WHEN p_fans IS NOT NULL THEN p_fans.COUNT ELSE 0 END;
 
     IF v_inscritos_actuales + v_nuevos > v_cupos_tot THEN
-        RAISE_APPLICATION_ERROR(
-            -20023,
-            'No hay cupos suficientes para este tour.'
-        );
+        RAISE_APPLICATION_ERROR(-20018, 'No hay cupos suficientes para este tour.');
     END IF;
 
-    v_costo_total    := v_nuevos * v_precio_ent;
+    v_costo_total := v_nuevos * v_precio_ent;
 
-    SELECT NVL(MAX(r.nro_reci), 0) + 1
-      INTO v_nro_reci
-      FROM recibos_inscripcion r
-     WHERE r.id_tour = p_fec_tour;
+    SELECT NVL(MAX(r.nro_reci), 0) + 1 INTO v_nro_reci FROM recibos_inscripcion r WHERE r.id_tour = p_fec_tour;
 
+    INSERT INTO recibos_inscripcion (id_tour, nro_reci, costo_tot, estatus, fec_emi) 
+    VALUES (p_fec_tour, v_nro_reci, v_costo_total, 'pendiente', NULL);
 
-    INSERT INTO recibos_inscripcion (
-        id_tour,
-        nro_reci,
-        costo_tot,
-        estatus,
-        fec_emi
-    ) VALUES (
-        p_fec_tour,
-        v_nro_reci,
-        v_costo_total,
-        'pendiente',
-        NULL
-    );
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+    DBMS_OUTPUT.PUT_LINE('              CONSTANCIA DE INSCRIPCIÓN (PENDIENTE)        ');
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+    DBMS_OUTPUT.PUT_LINE('Fecha Tour  : ' || TO_CHAR(p_fec_tour, 'DD/MM/YYYY'));
+    DBMS_OUTPUT.PUT_LINE('Nro Recibo  : ' || v_nro_reci);
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('ID   | ASISTENTE                      | TIPO    | COSTO');
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
 
     IF p_clientes IS NOT NULL THEN
         FOR i IN 1 .. p_clientes.COUNT LOOP
+            SELECT COUNT(*) INTO v_existe_inscripcion 
+              FROM inscritos 
+             WHERE id_tour = p_fec_tour AND id_clien = p_clientes(i);
+            
+            IF v_existe_inscripcion > 0 THEN
+                RAISE_APPLICATION_ERROR(-20037, 'El cliente ID ' || p_clientes(i) || ' ya se encuentra inscrito en este tour.');
+            END IF;
+
             BEGIN
-                SELECT c.pasaporte,
-                       c.fec_ven_pas,
-                       p.pertenece_ue
-                  INTO v_pasaporte,
-                       v_fec_ven,
-                       v_pertenece_ue
+                SELECT c.pasaporte, c.fec_ven_pas, p.pertenece_ue, c.p_nombre || ' ' || c.p_apellido
+                  INTO v_pasaporte, v_fec_ven, v_pertenece_ue, v_nombre_asistente
                   FROM paises p, clientes c
                  WHERE c.id_lego = p_clientes(i) AND p.id_pais = c.id_pais_nacio;
             EXCEPTION
-                WHEN NO_DATA_FOUND THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20024,
-                        'Cliente con id = ' || p_clientes(i) || ' no existe.'
-                    );
+                WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20019, 'Cliente con id = ' || p_clientes(i) || ' no existe.');
             END;
 
             IF NOT v_pertenece_ue THEN
-                IF v_pasaporte IS NULL  THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20025,
-                        'Cliente con id =' || p_clientes(i) ||
-                        '  no tiene pasaporte registrado.'
-                    );
-                ELSIF  v_fec_ven IS NULL THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20026,
-                        'Cliente con id =' || p_clientes(i) ||
-                        ' no tiene fecha de vencimiento del pasaporte registrada.'
-                    );
-                ELSIF TRUNC(v_fec_ven) < TRUNC(SYSDATE) THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20027,
-                        'El pasaporte del cliente con id=' || p_clientes(i) ||
-                        ' está vencido.'
-                    );
-                END IF;
+                IF v_pasaporte IS NULL THEN RAISE_APPLICATION_ERROR(-20020, 'Cliente ID ' || p_clientes(i) || ' sin pasaporte.'); END IF;
+                IF v_fec_ven IS NULL THEN RAISE_APPLICATION_ERROR(-20021, 'Cliente ID ' || p_clientes(i) || ' sin fecha vencimiento pasaporte.'); END IF;
+                IF TRUNC(v_fec_ven) < TRUNC(SYSDATE) THEN RAISE_APPLICATION_ERROR(-20022, 'Pasaporte vencido Cliente ID ' || p_clientes(i)); END IF;
             END IF;
 
             v_id_ins := v_id_ins + 1;
-
-            INSERT INTO inscritos (
-                id_tour,
-                nro_reci,
-                id_ins,
-                id_clien,
-                id_fan_men
-            ) VALUES (
-                p_fec_tour,
-                v_nro_reci,
-                v_id_ins,
-                p_clientes(i),
-                NULL
-            );
+            INSERT INTO inscritos (id_tour, nro_reci, id_ins, id_clien, id_fan_men) VALUES (p_fec_tour, v_nro_reci, v_id_ins, p_clientes(i), NULL);
+            
+            DBMS_OUTPUT.PUT_LINE(RPAD(p_clientes(i), 5) || '| ' || RPAD(SUBSTR(v_nombre_asistente,1,30), 31) || '| ADULTO  | ' || v_precio_ent);
         END LOOP;
     END IF;
 
     IF p_fans IS NOT NULL THEN
         FOR j IN 1 .. p_fans.COUNT LOOP
+            SELECT COUNT(*) INTO v_existe_inscripcion 
+              FROM inscritos 
+             WHERE id_tour = p_fec_tour AND id_fan_men = p_fans(j);
+            
+            IF v_existe_inscripcion > 0 THEN
+                RAISE_APPLICATION_ERROR(-20038, 'El fan menor ID ' || p_fans(j) || ' ya se encuentra inscrito en este tour.');
+            END IF;
+
             BEGIN
-                SELECT f.id_representante,
-                       edad(f.fec_naci),
-                       f.fec_ven_pas,
-                       p.pertenece_ue
-                  INTO v_id_rep,
-                       v_edad_fan,
-                       v_fec_ven,
-                       v_pertenece_ue
+                SELECT f.id_representante, edad(f.fec_naci), f.fec_ven_pas, p.pertenece_ue, f.p_nombre || ' ' || f.p_apellido
+                  INTO v_id_rep, v_edad_fan, v_fec_ven, v_pertenece_ue, v_nombre_asistente
                   FROM paises p, fans_menores f
                  WHERE f.id_fan = p_fans(j) AND p.id_pais = f.id_pais_nacio;
             EXCEPTION
-                WHEN NO_DATA_FOUND THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20028,
-                        'Fan menor con id =' || p_fans(j) || ' no existe.'
-                    );
+                WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20023, 'Fan menor id=' || p_fans(j) || ' no existe.');
             END;
             
-            IF NOT v_pertenece_ue AND TRUNC(v_fec_ven) < TRUNC(SYSDATE) THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20029,
-                        'El pasaporte del fan con id =' || p_fans(j) ||
-                        ' está vencido.'
-                    );
-            END IF;
+            IF NOT v_pertenece_ue AND TRUNC(v_fec_ven) < TRUNC(SYSDATE) THEN RAISE_APPLICATION_ERROR(-20024, 'Pasaporte vencido Fan ID ' || p_fans(j)); END IF;
 
             IF v_edad_fan < 18 THEN
                 v_rep_en_lista := FALSE;
-
                 IF p_clientes IS NOT NULL THEN
                     FOR k IN 1 .. p_clientes.COUNT LOOP
-                        IF p_clientes(k) = v_id_rep THEN
-                            v_rep_en_lista := TRUE;
-                            EXIT;
-                        END IF;
+                        IF p_clientes(k) = v_id_rep THEN v_rep_en_lista := TRUE; EXIT; END IF;
                     END LOOP;
                 END IF;
-
-                IF NOT v_rep_en_lista THEN
-                    RAISE_APPLICATION_ERROR(
-                        -20030,
-                        'El representante (id =' || v_id_rep ||
-                        ') del fan id =' || p_fans(j) ||
-                        ' no está incluido en la lista de visitantes de esta inscripción.'
-                    );
-                END IF;
+                IF NOT v_rep_en_lista THEN RAISE_APPLICATION_ERROR(-20025, 'El representante (ID ' || v_id_rep || ') del fan (ID ' || p_fans(j) || ') no está en la lista de adultos.'); END IF;
             END IF;
 
             v_id_ins := v_id_ins + 1;
-
-            INSERT INTO inscritos (
-                id_tour,
-                nro_reci,
-                id_ins,
-                id_clien,
-                id_fan_men
-            ) VALUES (
-                p_fec_tour,
-                v_nro_reci,
-                v_id_ins,
-                NULL,
-                p_fans(j)
-            );
+            INSERT INTO inscritos (id_tour, nro_reci, id_ins, id_clien, id_fan_men) VALUES (p_fec_tour, v_nro_reci, v_id_ins, NULL, p_fans(j));
+            
+            DBMS_OUTPUT.PUT_LINE(RPAD(p_fans(j), 5) || '| ' || RPAD(SUBSTR(v_nombre_asistente,1,30), 31) || '| MENOR   | ' || v_precio_ent);
         END LOOP;
     END IF;
+    
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('TOTAL A PAGAR: ' || v_costo_total);
+    DBMS_OUTPUT.PUT_LINE('Estado: PENDIENTE DE PAGO');
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
 
 END registrar_inscripcion_tour;
 /
@@ -1058,14 +981,14 @@ BEGIN
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             RAISE_APPLICATION_ERROR(
-                -20101,
+                -20026,
                 'El recibo de inscripción no existe para ese tour.'
             );
     END;
 
     IF v_estatus = 'pagado' THEN
         RAISE_APPLICATION_ERROR(
-            -20102,
+            -20027,
             'La inscripcion ya fue confirmada anteriormente.'
         );
     END IF;
@@ -1109,347 +1032,271 @@ BEGIN
 END confirmar_pago;
 /
 
+
 CREATE OR REPLACE PROCEDURE registrar_factura_online (
     p_id_cliente IN facturas_online.id_cliente%TYPE,
     p_detalles   IN det_fac_tab
 ) IS
-    v_id_pais_resi   clientes.id_pais_resi%TYPE;
-    v_pertenece_ue   paises.pertenece_ue%TYPE;
-    v_recargo_env    NUMBER(2,2);
-    v_nro_fact       facturas_online.nro_fact%TYPE;
-    v_costo_tot      facturas_online.costo_tot%TYPE := 0;
+    v_id_pais_resi    clientes.id_pais_resi%TYPE;
+    v_pertenece_ue    paises.pertenece_ue%TYPE;
+    v_recargo_env     NUMBER(2,2);
+    v_nro_fact        facturas_online.nro_fact%TYPE;
+    v_costo_tot       facturas_online.costo_tot%TYPE := 0;
     
-    v_venta_gratis   facturas_online.venta_gratis%TYPE;
-    v_puntos_leal   facturas_online.puntos_leal%TYPE;
+    v_venta_gratis    facturas_online.venta_gratis%TYPE;
+    v_puntos_leal     facturas_online.puntos_leal%TYPE;
+    
+    v_puntos_antes_compra NUMBER; 
+    v_puntos_total_cli    NUMBER; 
 
+    v_precio_unit     hist_precios.precio%TYPE;
+    v_lim_comp_on     catalogos.lim_compra_ol%TYPE;
 
-    v_precio_unit    hist_precios.precio%TYPE;
-    v_lim_comp_on    catalogos.lim_compra_ol%TYPE;
+    v_id_pais_cat     catalogos.id_pais%TYPE;
+    v_id_juguete_cat  catalogos.id_juguete%TYPE;
 
-    v_id_pais_cat    catalogos.id_pais%TYPE;
-    v_id_juguete_cat catalogos.id_juguete%TYPE;
-
-    v_renglon        dets_online.id_renglon%TYPE := 0;
+    v_renglon         dets_online.id_renglon%TYPE := 0;
+    v_nombre_juguete  juguetes.nombre%TYPE;
+    v_nombre_cliente  VARCHAR2(100);
+    
+    v_fec_ultimo_reset DATE;
 BEGIN
-
     BEGIN
-        SELECT c.id_pais_resi, p.pertenece_ue
-          INTO v_id_pais_resi, v_pertenece_ue
+        SELECT c.id_pais_resi, p.pertenece_ue, c.p_nombre || ' ' || c.p_apellido
+          INTO v_id_pais_resi, v_pertenece_ue, v_nombre_cliente
           FROM paises p, clientes c
          WHERE id_lego = p_id_cliente AND p.id_pais = c.id_pais_resi;
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
-            RAISE_APPLICATION_ERROR(
-                -21001,
-                'El cliente con id = ' || p_id_cliente || ' no existe.'
-            );
+            RAISE_APPLICATION_ERROR(-21001, 'El cliente con id = ' || p_id_cliente || ' no existe.');
     END;
 
-
     IF p_detalles IS NULL OR p_detalles.COUNT = 0 THEN
-        RAISE_APPLICATION_ERROR(
-            -21002,
-            'La factura online debe contener al menos un item.'
-        );
+        RAISE_APPLICATION_ERROR(-20028, 'La factura online debe contener al menos un item.');
     END IF;
     
-    IF v_pertenece_ue THEN
-        v_recargo_env := 0.05;
+    IF v_pertenece_ue THEN v_recargo_env := 0.05; ELSE v_recargo_env := 0.15; END IF;
+    
+    BEGIN
+        SELECT MAX(fec_emi) INTO v_fec_ultimo_reset
+          FROM facturas_online
+         WHERE id_cliente = p_id_cliente 
+           AND venta_gratis = TRUE;
+    EXCEPTION 
+        WHEN OTHERS THEN v_fec_ultimo_reset := NULL;
+    END;
+
+    IF v_fec_ultimo_reset IS NOT NULL THEN
+        SELECT NVL(SUM(puntos_leal), 0) INTO v_puntos_antes_compra
+          FROM facturas_online
+         WHERE id_cliente = p_id_cliente 
+           AND fec_emi >= v_fec_ultimo_reset;
     ELSE
-        v_recargo_env := 0.15;
+        SELECT NVL(SUM(puntos_leal), 0) INTO v_puntos_antes_compra
+          FROM facturas_online
+         WHERE id_cliente = p_id_cliente;
     END IF;
+
+    v_venta_gratis := (v_puntos_antes_compra >= 500);
     
-    v_venta_gratis := venta_es_gratis(p_id_cliente);
-
     v_nro_fact := id_fact_online.nextval;
+      
+    INSERT INTO facturas_online (nro_fact, fec_emi, costo_tot, puntos_leal, id_cliente, venta_gratis) 
+    VALUES (v_nro_fact, SYSDATE, NULL, NULL, p_id_cliente, NULL);
 
-     
-    INSERT INTO facturas_online (
-        nro_fact,
-        fec_emi,
-        costo_tot,
-        puntos_leal,
-        id_cliente,
-        venta_gratis
-    ) VALUES (
-        v_nro_fact,
-        SYSDATE,
-        NULL,
-        NULL,         
-        p_id_cliente,
-        NULL           
-    );
-
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+    DBMS_OUTPUT.PUT_LINE('              COMPROBANTE DE VENTA ONLINE                  ');
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+    DBMS_OUTPUT.PUT_LINE('Factura Nro: ' || v_nro_fact);
+    DBMS_OUTPUT.PUT_LINE('Cliente    : ' || v_nombre_cliente);
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('ITEM | PRODUCTO                  | CANT | P.UNIT  | SUBTOTAL');
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
 
     FOR i IN 1 .. p_detalles.COUNT LOOP
-
         BEGIN
-            SELECT c.lim_compra_ol
-              INTO v_lim_comp_on
-              FROM catalogos c
-             WHERE c.id_juguete = p_detalles(i).id_juguete
-               AND c.id_pais    = v_id_pais_resi;
+            SELECT c.lim_compra_ol INTO v_lim_comp_on FROM catalogos c
+             WHERE c.id_juguete = p_detalles(i).id_juguete AND c.id_pais = v_id_pais_resi;
+            v_id_pais_cat := v_id_pais_resi; 
+            v_id_juguete_cat := p_detalles(i).id_juguete;
         EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                RAISE_APPLICATION_ERROR(
-                    -21004,
-                    'El juguete con id = ' || p_detalles(i).id_juguete ||
-                    ' no está en el catálogo del país de residencia del cliente.'
-                );
+            WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20029, 'El juguete id=' || p_detalles(i).id_juguete || ' no está en el catálogo local.');
         END;
         
         BEGIN
-            SELECT h.precio
-              INTO v_precio_unit
-              FROM hist_precios h
-             WHERE h.id_juguete   = p_detalles(i).id_juguete
-               AND h.fecha_fin IS NULL;
+            SELECT h.precio, j.nombre INTO v_precio_unit, v_nombre_juguete 
+              FROM hist_precios h JOIN juguetes j ON h.id_juguete = j.id
+             WHERE h.id_juguete = p_detalles(i).id_juguete AND h.fecha_fin IS NULL;
         EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                RAISE_APPLICATION_ERROR(
-                    -23006,
-                    'El juguete id = ' || p_detalles(i).id_juguete ||
-                    ' no presenta registros en el historico de precios.'
-                );
+            WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20030, 'El juguete id=' || p_detalles(i).id_juguete || ' no tiene precio activo.');
         END;
 
-        -- Validar límite de compra online
         IF p_detalles(i).cantidad > v_lim_comp_on THEN
-            RAISE_APPLICATION_ERROR(
-                -21005,
-                'La cantidad solicitada (' || p_detalles(i).cantidad ||
-                ') excede el límite de compra online (' || v_lim_comp_on ||
-                ') para el juguete id = ' || p_detalles(i).id_juguete || '.'
-            );
+            RAISE_APPLICATION_ERROR(-20031, 'Cantidad ('||p_detalles(i).cantidad||') excede el límite permitido (' || v_lim_comp_on || ').');
         END IF;
 
-        -- Acumular total
         v_costo_tot := v_costo_tot + (p_detalles(i).cantidad * v_precio_unit);
-        
         v_renglon := v_renglon + 1;
 
-        INSERT INTO dets_online (
-            nro_fact,
-            id_renglon,
-            tipo_clien,
-            cantidad,
-            id_pais_cat,
-            id_juguete_cat
-        ) VALUES (
-            v_nro_fact,
-            v_renglon,
-            p_detalles(i).tipo_clien,
-            p_detalles(i).cantidad,
-            v_id_pais_cat,
-            v_id_juguete_cat
-        );
+        INSERT INTO dets_online (nro_fact, id_renglon, tipo_clien, cantidad, id_pais_cat, id_juguete_cat) 
+        VALUES (v_nro_fact, v_renglon, p_detalles(i).tipo_clien, p_detalles(i).cantidad, v_id_pais_cat, v_id_juguete_cat);
         
+        DBMS_OUTPUT.PUT_LINE(
+            RPAD(v_renglon, 5) || '| ' || 
+            RPAD(SUBSTR(v_nombre_juguete,1,25), 26) || '| ' || 
+            RPAD(p_detalles(i).cantidad, 5) || '| ' || 
+            RPAD(v_precio_unit, 8) || '| ' || 
+            (p_detalles(i).cantidad * v_precio_unit)
+        );
     END LOOP;
+
     IF v_venta_gratis THEN 
         v_puntos_leal := 0;
-        v_costo_tot := v_costo_tot *(v_recargo_env);
+        v_costo_tot := v_costo_tot * (v_recargo_env);
+        v_puntos_total_cli := v_puntos_antes_compra - 500;
     ELSE
         v_puntos_leal := calc_puntos_lealtad(v_costo_tot);
-        v_costo_tot := v_costo_tot *(1+ v_recargo_env);
+        v_costo_tot := v_costo_tot * (1 + v_recargo_env);
+        v_puntos_total_cli := v_puntos_antes_compra + v_puntos_leal;
     END IF;
-    UPDATE facturas_online
-    SET    venta_gratis = v_venta_gratis,
-           costo_tot = v_costo_tot,
+    
+    UPDATE facturas_online 
+       SET venta_gratis = v_venta_gratis, 
+           costo_tot = v_costo_tot, 
            puntos_leal = v_puntos_leal
-    WHERE  nro_fact = v_nro_fact;
+     WHERE nro_fact = v_nro_fact;
+
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    IF v_venta_gratis THEN
+        DBMS_OUTPUT.PUT_LINE('** ¡VENTA GRATIS APLICADA! **');
+        DBMS_OUTPUT.PUT_LINE('(Solo se cobra recargo de envío)');
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('TOTAL A PAGAR (Inc. Envío): ' || ROUND(v_costo_tot, 2));
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('PUNTOS GANADOS   : ' || v_puntos_leal);
+    DBMS_OUTPUT.PUT_LINE('PUNTOS ACUMULADOS: ' || v_puntos_total_cli);
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+
 END registrar_factura_online;
 /
+
 
 CREATE OR REPLACE PROCEDURE registrar_factura_tienda (
     p_id_tienda  IN facturas_tiendas.id_tienda%TYPE,
     p_id_cliente IN facturas_tiendas.id_cliente%TYPE,
     p_detalles   IN det_fac_tab
 ) IS
-    v_fec_emi        facturas_tiendas.fec_emi%TYPE := SYSDATE;
-    v_nro_fact       facturas_tiendas.nro_fact%TYPE;
-    v_costo_tot      facturas_tiendas.costo_tot%TYPE := 0;
-
-    v_id_pais_tienda tiendas_fisicas.id_pais%TYPE;
-
-    v_stock_total    NUMBER;
-    v_cant_pend      NUMBER;
-
-    v_nro_lote       lotes_inventarios.nro_lote%TYPE;
-    v_stock_lote     lotes_inventarios.cant_stock%TYPE;
-    v_cant_desc      descuentos_lotes_inventarios.cant_desc%TYPE;
-    v_id_desc        descuentos_lotes_inventarios.id_desc%TYPE;
-
-    v_precio_unit    NUMBER(8,2);
-
-    v_renglon        dets_facturas.id_renglon%TYPE := 0;
+    v_fec_emi         facturas_tiendas.fec_emi%TYPE := SYSDATE;
+    v_nro_fact        facturas_tiendas.nro_fact%TYPE;
+    v_costo_tot       facturas_tiendas.costo_tot%TYPE := 0;
+    v_id_pais_tienda  tiendas_fisicas.id_pais%TYPE;
+    v_stock_total     NUMBER;
+    v_cant_pend       NUMBER;
+    v_nro_lote        lotes_inventarios.nro_lote%TYPE;
+    v_stock_lote      lotes_inventarios.cant_stock%TYPE;
+    v_cant_desc       descuentos_lotes_inventarios.cant_desc%TYPE;
+    v_id_desc         descuentos_lotes_inventarios.id_desc%TYPE;
+    v_precio_unit     NUMBER(8,2);
+    v_renglon         dets_facturas.id_renglon%TYPE := 0;
+    
+    v_nombre_juguete  juguetes.nombre%TYPE;
+    v_nombre_tienda   tiendas_fisicas.nombre%TYPE;
+    v_nombre_cliente  VARCHAR2(100);
 BEGIN
-
     BEGIN
-        SELECT id_pais
-          INTO v_id_pais_tienda
-          FROM tiendas_fisicas
-         WHERE id_tienda = p_id_tienda;
+        SELECT id_pais, nombre INTO v_id_pais_tienda, v_nombre_tienda 
+          FROM tiendas_fisicas WHERE id_tienda = p_id_tienda;
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            RAISE_APPLICATION_ERROR(
-                -23001,
-                'La tienda con id  = ' || p_id_tienda || ' no existe.'
-            );
+        WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20032, 'La tienda con id = ' || p_id_tienda || ' no existe.');
     END;
 
     BEGIN
-        SELECT 1
-          INTO v_stock_total    -- solo para aprovechar la variable
-          FROM clientes
-         WHERE id_lego = p_id_cliente;
+        SELECT p_nombre || ' ' || p_apellido INTO v_nombre_cliente 
+          FROM clientes WHERE id_lego = p_id_cliente;
     EXCEPTION
-        WHEN NO_DATA_FOUND THEN
-            RAISE_APPLICATION_ERROR(
-                -23002,
-                'El cliente con id = ' || p_id_cliente || ' no existe.'
-            );
+        WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20033, 'El cliente con id = ' || p_id_cliente || ' no existe.');
     END;
 
     IF p_detalles IS NULL OR p_detalles.COUNT = 0 THEN
-        RAISE_APPLICATION_ERROR(
-            -23003,
-            'La factura física debe contener al menos un ítem.'
-        );
+        RAISE_APPLICATION_ERROR(-20034, 'La factura física debe contener al menos un ítem.');
     END IF;
 
-    SELECT NVL(MAX(nro_fact), 0) + 1
-      INTO v_nro_fact
-      FROM facturas_tiendas
-     WHERE id_tienda = p_id_tienda;
+    SELECT NVL(MAX(nro_fact), 0) + 1 INTO v_nro_fact FROM facturas_tiendas WHERE id_tienda = p_id_tienda;
 
+    INSERT INTO facturas_tiendas (id_tienda, nro_fact, fec_emi, id_cliente, costo_tot) 
+    VALUES (p_id_tienda, v_nro_fact, v_fec_emi, p_id_cliente, NULL);
 
-    INSERT INTO facturas_tiendas (
-        id_tienda,
-        nro_fact,
-        fec_emi,
-        id_cliente,
-        costo_tot
-    ) VALUES (
-        p_id_tienda,
-        v_nro_fact,
-        v_fec_emi,
-        p_id_cliente,
-        NULL
-    );
-
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+    DBMS_OUTPUT.PUT_LINE('                  COMPROBANTE DE VENTA                  ');
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+    DBMS_OUTPUT.PUT_LINE('Tienda     : ' || v_nombre_tienda);
+    DBMS_OUTPUT.PUT_LINE('Cliente    : ' || v_nombre_cliente);
+    DBMS_OUTPUT.PUT_LINE('Factura Nro: ' || v_nro_fact);
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('ITEM | PRODUCTO                  | CANT | P.UNIT  | SUBTOTAL');
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
 
     FOR i IN 1 .. p_detalles.COUNT LOOP
-       
-        SELECT NVL(SUM(cant_stock), 0)
-          INTO v_stock_total
-          FROM lotes_inventarios
-         WHERE id_tienda = p_id_tienda
-           AND id_juguete = p_detalles(i).id_juguete;
+        SELECT NVL(SUM(cant_stock), 0) INTO v_stock_total 
+          FROM lotes_inventarios 
+         WHERE id_tienda = p_id_tienda AND id_juguete = p_detalles(i).id_juguete;
 
         IF v_stock_total < p_detalles(i).cantidad THEN
-            RAISE_APPLICATION_ERROR(
-                -23005,
-                'Stock insuficiente para el juguete id = ' || p_detalles(i).id_juguete ||
-                ' en la tienda ' || p_id_tienda ||
-                '. Solicitado: ' || p_detalles(i).cantidad ||
-                ', Disponible: ' || v_stock_total
-            );
+            RAISE_APPLICATION_ERROR(-20035, 'Stock insuficiente (ID: '||p_detalles(i).id_juguete||'). Disponible: '||v_stock_total);
         END IF;
 
         BEGIN
-            SELECT h.precio
-              INTO v_precio_unit
-              FROM hist_precios h
-             WHERE h.id_juguete   =p_detalles(i).id_juguete
-               AND h.fecha_fin IS NULL;
+            SELECT h.precio, j.nombre INTO v_precio_unit, v_nombre_juguete
+              FROM hist_precios h JOIN juguetes j ON h.id_juguete = j.id
+             WHERE h.id_juguete = p_detalles(i).id_juguete AND h.fecha_fin IS NULL;
         EXCEPTION
-            WHEN NO_DATA_FOUND THEN
-                RAISE_APPLICATION_ERROR(
-                    -23006,
-                    'El juguete id = ' || p_detalles(i).id_juguete ||
-                    ' no presenta registros en el historico de precios.'
-                );
+            WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20036, 'Juguete sin precio activo.');
         END;
-
 
         v_cant_pend := p_detalles(i).cantidad;
 
         WHILE v_cant_pend > 0 LOOP
-            BEGIN
-                SELECT nro_lote, cant_stock
-                  INTO v_nro_lote, v_stock_lote
-                  FROM lotes_inventarios
-                 WHERE id_tienda  = p_id_tienda
-                   AND id_juguete = p_detalles(i).id_juguete
-                   AND cant_stock > 0
-                 ORDER BY nro_lote
-                 FETCH FIRST 1 ROWS ONLY;
-            END;
+            SELECT nro_lote, cant_stock INTO v_nro_lote, v_stock_lote
+              FROM lotes_inventarios
+             WHERE id_tienda = p_id_tienda AND id_juguete = p_detalles(i).id_juguete AND cant_stock > 0
+             ORDER BY nro_lote FETCH FIRST 1 ROWS ONLY;
 
             v_cant_desc := LEAST(v_cant_pend, v_stock_lote);
 
-            UPDATE lotes_inventarios
-               SET cant_stock = cant_stock - v_cant_desc
-             WHERE id_tienda  = p_id_tienda
-               AND id_juguete = p_detalles(i).id_juguete
-               AND nro_lote   = v_nro_lote;
+            UPDATE lotes_inventarios SET cant_stock = cant_stock - v_cant_desc
+             WHERE id_tienda = p_id_tienda AND id_juguete = p_detalles(i).id_juguete AND nro_lote = v_nro_lote;
 
+            SELECT NVL(MAX(id_desc), 0) + 1 INTO v_id_desc FROM descuentos_lotes_inventarios
+             WHERE id_tienda = p_id_tienda AND id_juguete = p_detalles(i).id_juguete AND nro_lote = v_nro_lote;
 
-            SELECT NVL(MAX(id_desc), 0) + 1
-              INTO v_id_desc
-              FROM descuentos_lotes_inventarios
-             WHERE id_tienda  = p_id_tienda
-               AND id_juguete = p_detalles(i).id_juguete
-               AND nro_lote   = v_nro_lote;
-
-            INSERT INTO descuentos_lotes_inventarios (
-                id_tienda,
-                id_juguete,
-                nro_lote,
-                id_desc,
-                fecha,
-                cant_desc
-            ) VALUES (
-                p_id_tienda,
-                p_detalles(i).id_juguete,
-                v_nro_lote,
-                v_id_desc,
-                v_fec_emi,
-                v_cant_desc
-            );
-
-           
+            INSERT INTO descuentos_lotes_inventarios (id_tienda, id_juguete, nro_lote, id_desc, fecha, cant_desc) 
+            VALUES (p_id_tienda, p_detalles(i).id_juguete, v_nro_lote, v_id_desc, v_fec_emi, v_cant_desc);
+            
             v_renglon := v_renglon + 1;
 
-            INSERT INTO dets_facturas (
-                id_tienda,
-                nro_fact,
-                id_renglon,
-                tipo_clien,
-                cantidad,
-                id_juguete,
-                nro_lote
-            ) VALUES (
-                p_id_tienda,
-                v_nro_fact,
-                v_renglon,
-                p_detalles(i).tipo_clien,
-                v_cant_desc,
-                p_detalles(i).id_juguete,
-                v_nro_lote
-            );
-
+            INSERT INTO dets_facturas (id_tienda, nro_fact, id_renglon, tipo_clien, cantidad, id_juguete, nro_lote) 
+            VALUES (p_id_tienda, v_nro_fact, v_renglon, p_detalles(i).tipo_clien, v_cant_desc, p_detalles(i).id_juguete, v_nro_lote);
 
             v_costo_tot := v_costo_tot + (v_cant_desc * v_precio_unit);
-
             v_cant_pend := v_cant_pend - v_cant_desc;
         END LOOP;
+        
+        DBMS_OUTPUT.PUT_LINE(
+            RPAD(i, 5) || '| ' || 
+            RPAD(SUBSTR(v_nombre_juguete,1,25), 26) || '| ' || 
+            RPAD(p_detalles(i).cantidad, 5) || '| ' || 
+            RPAD(v_precio_unit, 8) || '| ' || 
+            (p_detalles(i).cantidad * v_precio_unit)
+        );
+        
     END LOOP;
 
-    UPDATE facturas_tiendas
-       SET costo_tot = v_costo_tot
-     WHERE id_tienda = p_id_tienda
-       AND nro_fact  = v_nro_fact;
+    UPDATE facturas_tiendas SET costo_tot = v_costo_tot WHERE id_tienda = p_id_tienda AND nro_fact = v_nro_fact;
+
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('TOTAL PAGADO: ' || ROUND(v_costo_tot, 2));
+    DBMS_OUTPUT.PUT_LINE('===========================================================');
+
 END registrar_factura_tienda;
 /
 
@@ -1481,7 +1328,6 @@ VALUES (7, 'Canadá', 'AM', 'Canadiense', FALSE);
 -- Estados
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (1, 1, 'País Vasco');
-
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (1, 2, 'Comunidad de Madrid');
 
@@ -1490,13 +1336,11 @@ VALUES (5, 1, 'Escocia');
 
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (6, 1, 'Brașov');
-
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (6, 2, 'Cluj');
 
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (7, 1, 'Quebec');
-
 INSERT INTO estados (id_pais, id_estado, nombre)
 VALUES (7, 2, 'Ontario');
 
@@ -1955,8 +1799,7 @@ SELECT
     END AS precio_final
 FROM hist_precios h
 JOIN juguetes j ON h.id_juguete = j.id
-CROSS JOIN paises p; 
-
+CROSS JOIN paises p;
 
 CREATE OR REPLACE VIEW v_horarios_tiendas AS
 SELECT
@@ -1976,3 +1819,5 @@ ORDER BY
 SELECT *
 FROM v_horarios_tiendas
 WHERE id_tienda = 7;
+
+@menu_LEGO.sql
