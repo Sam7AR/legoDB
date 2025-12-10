@@ -1801,4 +1801,23 @@ FROM hist_precios h
 JOIN juguetes j ON h.id_juguete = j.id
 CROSS JOIN paises p;
 
+CREATE OR REPLACE VIEW v_horarios_tiendas AS
+SELECT
+    t.id_tienda,
+    t.nombre AS nombre_tienda,
+    num_a_dia(h.dia) AS dia_semana,
+    TO_CHAR(h.hora_aper, 'HH24:MI') AS hora_apertura,
+    TO_CHAR(h.hora_cier, 'HH24:MI') AS hora_cierre
+FROM
+    tiendas_fisicas t
+JOIN
+    horarios h ON t.id_tienda = h.id_tienda
+ORDER BY
+    t.id_tienda, h.dia;
+/
+
+SELECT *
+FROM v_horarios_tiendas
+WHERE id_tienda = 7;
+
 @menu_LEGO.sql

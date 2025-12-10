@@ -6,15 +6,16 @@ SET PAGESIZE 50
 
 UNDEFINE v_opcion_menu
 UNDEFINE v_tienda_id
+UNDEFINE v_nombre_tienda_disp
 UNDEFINE v_cli_id
 UNDEFINE v_cli_on_id
-UNDEFINE v_prod_id_fis
+UNDEFINE v_prod_list_fis
 UNDEFINE v_cant_fis
-UNDEFINE v_prod_id_on
+UNDEFINE v_prod_list_on
 UNDEFINE v_cant_on
 UNDEFINE v_tour_fecha_str
 UNDEFINE v_tour_cli
-UNDEFINE v_tour_fan
+UNDEFINE v_tour_fans_str
 
 CLEAR SCREEN
 PROMPT
@@ -48,6 +49,9 @@ ORDER BY id_tienda;
 
 ACCEPT v_tienda_id PROMPT '>> Ingrese ID de la Tienda: ' DEFAULT 0
 
+COLUMN nombre_real NEW_VALUE v_nombre_tienda_disp
+SELECT nombre as nombre_real FROM tiendas_fisicas WHERE id_tienda = &v_tienda_id;
+
 PROMPT
 BEGIN
     IF &v_opcion_menu = 1 THEN
@@ -58,14 +62,14 @@ END;
 COLUMN cliente_nombre FORMAT A30 HEADING 'Cliente'
 SELECT id_lego, p_nombre || ' ' || p_apellido as cliente_nombre 
 FROM clientes 
-WHERE &v_opcion_menu = 1 AND ROWNUM <= 5;
+WHERE &v_opcion_menu = 1;
 
 ACCEPT v_cli_id PROMPT '>> Ingrese ID del Cliente: ' DEFAULT 0
 
 PROMPT
 BEGIN
     IF &v_opcion_menu = 1 THEN
-        DBMS_OUTPUT.PUT_LINE('--- Stock Disponible en Tienda ' || &v_tienda_id || ' ---');
+        DBMS_OUTPUT.PUT_LINE('--- Stock Disponible en: &v_nombre_tienda_disp ---');
     END IF;
 END;
 /
@@ -81,8 +85,8 @@ WHERE l.id_tienda = &v_tienda_id
 GROUP BY j.id, j.nombre, h.precio
 HAVING SUM(l.cant_stock) > 0;
 
-ACCEPT v_prod_id_fis PROMPT '>> ID Juguete a vender: ' DEFAULT 0
-ACCEPT v_cant_fis    PROMPT '>> Cantidad: ' DEFAULT 0
+ACCEPT v_prod_list_fis PROMPT '>> IDs Juguetes (separados por coma, ej: 1,5): ' DEFAULT '0'
+ACCEPT v_cant_fis      PROMPT '>> Cantidad (para cada producto): ' DEFAULT 0
 
 PROMPT
 BEGIN
@@ -96,8 +100,7 @@ END;
 SELECT id_lego, p_nombre, p_apellido, TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) as edad_actual
 FROM clientes 
 WHERE TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) >= 21
-  AND &v_opcion_menu = 2
-FETCH FIRST 10 ROWS ONLY;
+  AND &v_opcion_menu = 2;
 
 ACCEPT v_cli_on_id PROMPT '>> Ingrese ID Cliente Online: ' DEFAULT 0
 
@@ -121,8 +124,8 @@ WHERE h.fecha_fin IS NULL
   AND c.id_pais = (SELECT id_pais_resi FROM clientes WHERE id_lego = &v_cli_on_id)
 ORDER BY j.id;
 
-ACCEPT v_prod_id_on PROMPT '>> ID Juguete a enviar: ' DEFAULT 0
-ACCEPT v_cant_on    PROMPT '>> Cantidad: ' DEFAULT 0
+ACCEPT v_prod_list_on PROMPT '>> IDs Juguetes (separados por coma, ej: 1,5): ' DEFAULT '0'
+ACCEPT v_cant_on      PROMPT '>> Cantidad (para cada producto): ' DEFAULT 0
 
 PROMPT
 BEGIN
@@ -186,17 +189,21 @@ FROM fans_menores f
 JOIN clientes c ON f.id_representante = c.id_lego
 WHERE &v_opcion_menu = 3;
 
-ACCEPT v_tour_fan PROMPT '>> ID Fan Menor a inscribir (0 si ninguno): ' DEFAULT 0
+ACCEPT v_tour_fans_str PROMPT '>> IDs Fans Menores (separados por coma, ej: 203,205 / 0 si ninguno): ' DEFAULT '0'
 
 
 DECLARE
     v_opcion      NUMBER := &v_opcion_menu;
     
     v_detalles    det_fac_tab;         
-    
     v_clientes_tour id_tab;            
     v_fans_tour     id_tab;
     v_fecha_tour    DATE;
+    
+    v_input_str     VARCHAR2(400);
+    v_temp_str      VARCHAR2(100);
+    v_comma_pos     NUMBER;
+    v_temp_id       NUMBER;
     
 BEGIN
     IF v_opcion NOT IN (1, 2, 3) THEN
@@ -206,9 +213,24 @@ BEGIN
 
     IF v_opcion = 1 THEN
         v_detalles := det_fac_tab();
-        v_detalles.extend; 
         
-        v_detalles(1) := det_fac_params(&v_prod_id_fis, &v_cant_fis, 'MA'); 
+        v_input_str := '&v_prod_list_fis' || ',';
+        
+        WHILE INSTR(v_input_str, ',') > 0 LOOP
+            v_comma_pos := INSTR(v_input_str, ',');
+            v_temp_str := TRIM(SUBSTR(v_input_str, 1, v_comma_pos - 1));
+            
+            BEGIN
+                v_temp_id := TO_NUMBER(v_temp_str);
+                IF v_temp_id > 0 THEN
+                    v_detalles.extend;
+                    v_detalles(v_detalles.LAST) := det_fac_params(v_temp_id, &v_cant_fis, 'MA');
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL; 
+            END;
+            
+            v_input_str := SUBSTR(v_input_str, v_comma_pos + 1);
+        END LOOP;
         
         DBMS_OUTPUT.PUT_LINE('Procesando Venta Física...');
         
@@ -223,9 +245,24 @@ BEGIN
 
     IF v_opcion = 2 THEN
         v_detalles := det_fac_tab();
-        v_detalles.extend;
         
-        v_detalles(1) := det_fac_params(&v_prod_id_on, &v_cant_on, 'MA');
+        v_input_str := '&v_prod_list_on' || ',';
+        
+        WHILE INSTR(v_input_str, ',') > 0 LOOP
+            v_comma_pos := INSTR(v_input_str, ',');
+            v_temp_str := TRIM(SUBSTR(v_input_str, 1, v_comma_pos - 1));
+            
+            BEGIN
+                v_temp_id := TO_NUMBER(v_temp_str);
+                IF v_temp_id > 0 THEN
+                    v_detalles.extend;
+                    v_detalles(v_detalles.LAST) := det_fac_params(v_temp_id, &v_cant_on, 'MA');
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL; 
+            END;
+            
+            v_input_str := SUBSTR(v_input_str, v_comma_pos + 1);
+        END LOOP;
         
         DBMS_OUTPUT.PUT_LINE('Procesando Venta Online...');
         
@@ -245,10 +282,23 @@ BEGIN
         v_clientes_tour(1) := &v_tour_cli; 
         
         v_fans_tour := id_tab();
-        IF &v_tour_fan > 0 THEN
-            v_fans_tour.extend;
-            v_fans_tour(1) := &v_tour_fan;
-        END IF;
+        v_input_str := '&v_tour_fans_str' || ',';
+        
+        WHILE INSTR(v_input_str, ',') > 0 LOOP
+            v_comma_pos := INSTR(v_input_str, ',');
+            v_temp_str := TRIM(SUBSTR(v_input_str, 1, v_comma_pos - 1));
+            
+            BEGIN
+                v_temp_id := TO_NUMBER(v_temp_str);
+                IF v_temp_id > 0 THEN
+                    v_fans_tour.extend;
+                    v_fans_tour(v_fans_tour.LAST) := v_temp_id;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+            
+            v_input_str := SUBSTR(v_input_str, v_comma_pos + 1);
+        END LOOP;
         
         DBMS_OUTPUT.PUT_LINE('Inscribiendo en Tour...');
         
