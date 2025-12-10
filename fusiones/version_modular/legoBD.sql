@@ -1773,4 +1773,80 @@ VALUES (1, 6, 1, 7);
 
 COMMIT;
 
+--VIEWS
+
+CREATE OR REPLACE VIEW v_precios_por_pais AS
+SELECT 
+    p.id_pais        AS "ID País",
+    p.nombre         AS "País",
+    j.nombre         AS "Nombre Juguete",
+    h.fecha_inicio   AS "Fecha Inicio",
+    h.fecha_fin      AS "Fecha Fin",
+    
+    CASE 
+        WHEN h.fecha_fin IS NULL THEN 'ACTIVO'
+        ELSE 'FINALIZADO'
+    END AS "Estado",
+    
+    CASE 
+        WHEN p.pertenece_ue THEN 
+            TO_CHAR(h.precio, 'L99G999D99', 'NLS_CURRENCY=''€''')
+        ELSE 
+            TO_CHAR(ROUND(h.precio * 1.05, 2), 'L99G999D99', 'NLS_CURRENCY=''$''')
+    END AS "Precio Final"
+
+FROM hist_precios h, 
+     juguetes j, 
+     paises p      
+
+WHERE h.id_juguete = j.id; 
+/
+
+CREATE OR REPLACE VIEW v_horarios_tiendas AS
+SELECT
+    t.id_tienda,
+    t.nombre AS nombre_tienda,
+    num_a_dia(h.dia) AS dia_semana,
+    TO_CHAR(h.hora_aper, 'HH24:MI') AS hora_apertura,
+    TO_CHAR(h.hora_cier, 'HH24:MI') AS hora_cierre
+FROM
+    tiendas_fisicas t
+JOIN
+    horarios h ON t.id_tienda = h.id_tienda
+ORDER BY
+    t.id_tienda, h.dia;
+/
+
+SELECT *
+FROM v_horarios_tiendas
+WHERE id_tienda = 7;
+
+CREATE OR REPLACE VIEW v_recibos_detallados AS
+SELECT 
+    
+    id_tour AS "Fecha del Tour",
+    
+    
+    nro_reci AS "Nro. Recibo",
+    
+    
+    TO_CHAR(costo_tot, 'L99G999D99', 'NLS_CURRENCY=''€''') AS "Importe Total",
+    
+    
+    CASE estatus
+        WHEN 'pagado'    THEN 'PAGADO'
+        WHEN 'pendiente' THEN 'PENDIENTE'
+        ELSE UPPER(estatus)
+    END AS "Estado del Pago",
+    
+    
+    CASE 
+        WHEN fec_emi IS NULL THEN '---'
+        ELSE TO_CHAR(fec_emi, 'DD/MM/YYYY HH24:MI') 
+    END AS "Fecha de Emisión"
+
+FROM recibos_inscripcion
+ORDER BY id_tour DESC, nro_reci ASC;
+/
+
 @menu_LEGO.sql
