@@ -14,7 +14,7 @@ UNDEFINE v_cant_fis
 UNDEFINE v_prod_list_on
 UNDEFINE v_cant_on
 UNDEFINE v_tour_fecha_str
-UNDEFINE v_tour_cli
+UNDEFINE v_tour_cli_str
 UNDEFINE v_tour_fans_str
 
 CLEAR SCREEN
@@ -167,14 +167,14 @@ WHERE TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) >= 21
   AND &v_opcion_menu = 3
 ORDER BY id_lego;
 
-ACCEPT v_tour_cli PROMPT '>> ID Cliente que asiste (Adulto): ' DEFAULT 0
+ACCEPT v_tour_cli_str PROMPT '>> IDs Clientes Adultos (separados por coma, ej: 101,102): ' DEFAULT '0'
 
 PROMPT
 BEGIN
     IF &v_opcion_menu = 3 THEN
         DBMS_OUTPUT.PUT_LINE(' ');
         DBMS_OUTPUT.PUT_LINE('--- Fans Menores Disponibles ---');
-        DBMS_OUTPUT.PUT_LINE('IMPORTANTE: El Fan Menor debe estar asociado al Adulto seleccionado arriba.');
+        DBMS_OUTPUT.PUT_LINE('IMPORTANTE: El Fan Menor debe estar asociado a un Adulto seleccionado arriba.');
     END IF;
 END;
 /
@@ -278,8 +278,23 @@ BEGIN
         v_fecha_tour := TO_DATE('&v_tour_fecha_str', 'DD/MM/YY'); 
         
         v_clientes_tour := id_tab();
-        v_clientes_tour.extend;
-        v_clientes_tour(1) := &v_tour_cli; 
+        v_input_str := '&v_tour_cli_str' || ',';
+        
+        WHILE INSTR(v_input_str, ',') > 0 LOOP
+            v_comma_pos := INSTR(v_input_str, ',');
+            v_temp_str := TRIM(SUBSTR(v_input_str, 1, v_comma_pos - 1));
+            
+            BEGIN
+                v_temp_id := TO_NUMBER(v_temp_str);
+                IF v_temp_id > 0 THEN
+                    v_clientes_tour.extend;
+                    v_clientes_tour(v_clientes_tour.LAST) := v_temp_id;
+                END IF;
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+            
+            v_input_str := SUBSTR(v_input_str, v_comma_pos + 1);
+        END LOOP;
         
         v_fans_tour := id_tab();
         v_input_str := '&v_tour_fans_str' || ',';
