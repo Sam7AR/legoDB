@@ -2,34 +2,45 @@ UNDEFINE v_cli_on_id
 UNDEFINE v_prod_list_on
 UNDEFINE v_cant_on
 
+CLEAR SCREEN
 PROMPT
 PROMPT === [2] NUEVA VENTA ONLINE ===
 PROMPT Nota: Se verificará si la venta es gratis por puntos.
+PROMPT
 
 -- 1. Mostrar Clientes Aptos
-SELECT id_lego, p_nombre, p_apellido, TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) as edad_actual
-FROM clientes 
-WHERE TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) >= 21;
+COLUMN p_nombre FORMAT A15
+COLUMN p_apellido FORMAT A15
+COLUMN edad_actual FORMAT 99
 
+PROMPT --- Paso 1: Seleccione Cliente (Solo mayores de 21) ---
+
+-- Consulta unificada en una sola línea
+SELECT id_lego, p_nombre, p_apellido, TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) as edad_actual FROM clientes WHERE TRUNC(MONTHS_BETWEEN(SYSDATE, fec_naci)/12) >= 21 ORDER BY id_lego;
+
+PROMPT
 ACCEPT v_cli_on_id PROMPT '>> Ingrese ID Cliente Online: ' DEFAULT 0
 
+CLEAR SCREEN
+PROMPT === [2] NUEVA VENTA ONLINE ===
+PROMPT Cliente Seleccionado: &v_cli_on_id
+PROMPT
+
 -- 2. Mostrar Catálogo del País
-PROMPT --- Catálogo Disponible para el País del Cliente &v_cli_on_id ---
 COLUMN desc_juguete FORMAT A35
 COLUMN precio FORMAT 999.99 HEADING 'Precio'
 COLUMN limite FORMAT 99 HEADING 'Lim. Max'
 
-SELECT j.id, j.nombre as desc_juguete, c.lim_compra_ol as limite, h.precio
-FROM juguetes j
-JOIN hist_precios h ON j.id = h.id_juguete
-JOIN catalogos c ON j.id = c.id_juguete 
-WHERE h.fecha_fin IS NULL
-  AND c.id_pais = (SELECT id_pais_resi FROM clientes WHERE id_lego = &v_cli_on_id)
-ORDER BY j.id;
+PROMPT --- Paso 2: Catálogo Disponible para el País del Cliente ---
 
+-- Consulta unificada en una sola línea
+SELECT j.id, j.nombre as desc_juguete, c.lim_compra_ol as limite, h.precio FROM juguetes j JOIN hist_precios h ON j.id = h.id_juguete JOIN catalogos c ON j.id = c.id_juguete WHERE h.fecha_fin IS NULL AND c.id_pais = (SELECT id_pais_resi FROM clientes WHERE id_lego = &v_cli_on_id) ORDER BY j.id;
+
+PROMPT
 ACCEPT v_prod_list_on PROMPT '>> IDs Juguetes (separados por coma, ej: 1,5): ' DEFAULT '0'
 ACCEPT v_cant_on      PROMPT '>> Cantidad (para cada producto): ' DEFAULT 0
 
+CLEAR SCREEN
 -- 3. Procesar
 DECLARE
     v_detalles    det_fac_tab := det_fac_tab();
