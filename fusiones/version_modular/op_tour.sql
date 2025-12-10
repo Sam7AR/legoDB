@@ -50,8 +50,19 @@ COLUMN rep_nombre FORMAT A25 HEADING 'Nombre Rep.'
 PROMPT --- Paso 3: Seleccione Fans Menores (Opcional) ---
 
 -- Consulta unificada
-SELECT f.id_fan, f.p_nombre || ' ' || f.p_apellido as fan_nombre, f.id_representante as rep_id, c.p_nombre || ' ' || c.p_apellido as rep_nombre FROM fans_menores f JOIN clientes c ON f.id_representante = c.id_lego;
-
+SELECT
+    f.id_fan,
+    f.p_nombre || ' ' || f.p_apellido AS fan_nombre,
+    TRUNC(MONTHS_BETWEEN(SYSDATE, f.fec_naci) / 12) AS edad_actual, -- Edad del Fan
+    f.id_representante AS rep_id,
+    NVL(c.p_nombre || ' ' || c.p_apellido, 'Sin Representante') AS rep_nombre -- Nombre del Representante (o 'Sin Representante')
+FROM
+    fans_menores f, clientes c
+WHERE
+   f.id_representante = c.id_lego (+)
+ORDER BY
+    f.id_fan;
+    
 PROMPT
 ACCEPT v_tour_fans_str PROMPT '>> IDs Fans Menores (separados por coma, ej: 203,205 / 0 si ninguno): ' DEFAULT '0'
 
