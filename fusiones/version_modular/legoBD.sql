@@ -1125,8 +1125,8 @@ BEGIN
         
         BEGIN
             SELECT h.precio, j.nombre INTO v_precio_unit, v_nombre_juguete 
-              FROM hist_precios h JOIN juguetes j ON h.id_juguete = j.id
-             WHERE h.id_juguete = p_detalles(i).id_juguete AND h.fecha_fin IS NULL;
+              FROM juguetes j,  hist_precios h
+             WHERE j.id = h.id_juguete AND h.id_juguete = p_detalles(i).id_juguete AND h.fecha_fin IS NULL;
         EXCEPTION
             WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20030, 'El juguete id=' || p_detalles(i).id_juguete || ' no tiene precio activo.');
         END;
@@ -1247,8 +1247,8 @@ BEGIN
 
         BEGIN
             SELECT h.precio, j.nombre INTO v_precio_unit, v_nombre_juguete
-              FROM hist_precios h JOIN juguetes j ON h.id_juguete = j.id
-             WHERE h.id_juguete = p_detalles(i).id_juguete AND h.fecha_fin IS NULL;
+              FROM juguetes j, hist_precios h
+             WHERE j.id = h.id_juguete AND  h.id_juguete = p_detalles(i).id_juguete AND h.fecha_fin IS NULL;
         EXCEPTION
             WHEN NO_DATA_FOUND THEN RAISE_APPLICATION_ERROR(-20036, 'Juguete sin precio activo.');
         END;
