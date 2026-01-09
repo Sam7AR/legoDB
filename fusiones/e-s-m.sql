@@ -1309,3 +1309,5 @@ INSERT INTO fans_menores VALUES (
 );
 
 COMMIT;
+
+exec registrar_precio_juguete()
