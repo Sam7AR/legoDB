@@ -53,9 +53,9 @@ SELECT j.id,
  ORDER BY j.id;
 
 PROMPT
-PROMPT Formato de entrada: id_juguete:cantidad,id_juguete:cantidad,...
-PROMPT Ejemplo: 1:2,5:1,7:3
-ACCEPT v_items_on PROMPT '>> Productos y cantidades: ' DEFAULT ''
+PROMPT Formato de entrada: id_juguete:cantidad:tipo, id_juguete:cantidad:tipo
+PROMPT Ejemplo: 1:2:MA, 5:1:ME, 7:3:MA (Tipos validos: MA / ME)
+ACCEPT v_items_on PROMPT '>> Productos: ' DEFAULT ''
 
 CLEAR SCREEN
 
@@ -65,9 +65,14 @@ DECLARE
     v_input_str   VARCHAR2(4000);
     v_pair        VARCHAR2(200);
     v_comma_pos   PLS_INTEGER;
-    v_colon_pos   PLS_INTEGER;
+    
+    -- Variables para manejar los DOS puntos (:)
+    v_colon1_pos  PLS_INTEGER;
+    v_colon2_pos  PLS_INTEGER;
+    
     v_id_jug      NUMBER;
     v_cant        NUMBER;
+    v_tipo_item   VARCHAR2(2); -- Aquí guardaremos el MA o ME
 BEGIN
     v_input_str := TRIM('&v_items_on');
 
@@ -81,29 +86,47 @@ BEGIN
 
     WHILE INSTR(v_input_str, ',') > 0 LOOP
         v_comma_pos := INSTR(v_input_str, ',');
-        v_pair      := TRIM(SUBSTR(v_input_str, 1, v_comma_pos - 1)); -- "id:cant"
+        v_pair      := TRIM(SUBSTR(v_input_str, 1, v_comma_pos - 1)); -- "id:cant:tipo"
         v_input_str := SUBSTR(v_input_str, v_comma_pos + 1);
 
         IF v_pair IS NOT NULL THEN
-            v_colon_pos := INSTR(v_pair, ':');
+            -- Buscamos el PRIMER ':'
+            v_colon1_pos := INSTR(v_pair, ':');
+            
+            -- Buscamos el SEGUNDO ':' (Empezando a buscar después del primero)
+            v_colon2_pos := INSTR(v_pair, ':', v_colon1_pos + 1);
 
-            IF v_colon_pos = 0 THEN
-                DBMS_OUTPUT.PUT_LINE('Aviso: par ignorado por formato inválido -> ' || v_pair);
+            IF v_colon1_pos = 0 OR v_colon2_pos = 0 THEN
+                DBMS_OUTPUT.PUT_LINE('Aviso: Formato inválido (faltan dos puntos) en -> ' || v_pair);
             ELSE
                 BEGIN
-                    v_id_jug := TO_NUMBER(TRIM(SUBSTR(v_pair, 1, v_colon_pos - 1)));
-                    v_cant   := TO_NUMBER(TRIM(SUBSTR(v_pair, v_colon_pos + 1)));
+                    -- 1. Extraer ID (desde el inicio hasta antes del primer :)
+                    v_id_jug := TO_NUMBER(TRIM(SUBSTR(v_pair, 1, v_colon1_pos - 1)));
+                    
+                    -- 2. Extraer Cantidad (entre el primer y segundo :)
+                    -- La longitud es: posición_2 - posición_1 - 1
+                    v_cant   := TO_NUMBER(TRIM(SUBSTR(v_pair, v_colon1_pos + 1, v_colon2_pos - v_colon1_pos - 1)));
+                    
+                    -- 3. Extraer Tipo (desde después del segundo : hasta el final)
+                    v_tipo_item := UPPER(TRIM(SUBSTR(v_pair, v_colon2_pos + 1)));
+
+                    -- Validación básica del tipo
+                    IF v_tipo_item NOT IN ('MA', 'ME') THEN
+                        DBMS_OUTPUT.PUT_LINE('Aviso: Tipo "'||v_tipo_item||'" desconocido en item '||v_id_jug||'. Se forzará a MA.');
+                        v_tipo_item := 'MA';
+                    END IF;
 
                     IF v_id_jug > 0 AND v_cant > 0 THEN
                         v_detalles.EXTEND;
-                        v_detalles(v_detalles.LAST) :=
-                            det_fac_params(v_id_jug, v_cant, 'MA'); -- tipo_clien fijo 'MA'
+                        -- Aquí pasamos la variable v_tipo_item que acabamos de leer
+                        v_detalles(v_detalles.LAST) := 
+                            det_fac_params(v_id_jug, v_cant, v_tipo_item); 
                     ELSE
                         DBMS_OUTPUT.PUT_LINE('Aviso: id o cantidad inválidos en ' || v_pair);
                     END IF;
                 EXCEPTION
                     WHEN VALUE_ERROR THEN
-                        DBMS_OUTPUT.PUT_LINE('Aviso: no se pudo convertir id o cantidad en ' || v_pair);
+                        DBMS_OUTPUT.PUT_LINE('Aviso: error numérico al leer ' || v_pair);
                 END;
             END IF;
         END IF;

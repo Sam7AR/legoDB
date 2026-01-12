@@ -2021,6 +2021,7 @@ SELECT
     d.nro_fact "Nro. Factura",
     d.id_renglon "ID Renglon",
     d.cantidad "Cantidad",
+    d.tipo_clien "Tipo de cliente",
     j.nombre "Juguete",
     
     CASE 
